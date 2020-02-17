@@ -51,6 +51,18 @@ class shift2d_func(Function):
         return grad_input, grad_weight, None
 
 class Shift2D(nn.Module):
+    """
+        Performs (index)shift operation under 4D tensor(by h and w axes). Zero-FLOPs replacement of Depth-wise convolution.
+        
+        Note:Shift values and directions is learnable for each channel.
+       
+        Arguments:
+            in_channels(int) – Number of channels in the input image.
+            padding(str) - Padding added to the input during bilinear interpolation(currently, during backward pass).
+                           Allowed: ['zeros', 'border']. Default: 'zeros'.
+            init_stride(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
+            sparsity_term(float) - Strength of sparsity. Default: 5e-4.
+    """
     def __init__(self, in_channels, padding='zeros',
                  init_stride = 1,
                  sparsity_term=5e-4):
