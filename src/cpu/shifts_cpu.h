@@ -5,7 +5,7 @@
 
 
 // padding used during bilinear interpolation(backward computation)
-enum class BIPadding {Zeros, Border, Reflect,Symmetric};
+enum class BIPadding {Zeros, Border, Reflect, Symmetric};
 
 
 torch::Tensor shift1d_cpu(const torch::Tensor& input,

@@ -15,10 +15,7 @@ inline int64_t infer_ind_border(int64_t index, int64_t threshold){
     if (index >= threshold){
         return threshold - 1;
     }
-    if (index < 0){
-        return 0;
-    }
-    
+    return 0;   
 }
             
 inline int64_t infer_ind_reflect(int64_t index, int64_t threshold, int64_t offset){
@@ -26,13 +23,14 @@ inline int64_t infer_ind_reflect(int64_t index, int64_t threshold, int64_t offse
         return index;
     }
     int64_t temp = index;
-    if index < 0:
+    if (index < 0){
         temp = std::abs(index-offset) - 1;
+    }
     return ((temp / (threshold - offset)) % 2 == 1) ? (threshold - 1 - (temp / (threshold - offset))) : (temp / (threshold - offset));
 }
 
 template <typename scalar_t>
-inline std::tuple<scalar_t,scalar_t> infer_linear_values(int64_t i, int64_t shift
+inline std::tuple<scalar_t,scalar_t> infer_linear_values(int64_t i, int64_t shift,
                                                          int64_t H,  int64_t stride,
                                                          scalar_t* vector_pointer,
                                                          BIPadding padding_mode){
@@ -58,10 +56,10 @@ inline std::tuple<scalar_t,scalar_t> infer_linear_values(int64_t i, int64_t shif
      scalar_t l_v = 0;
      scalar_t r_v = 0;    
      if (l_v >= 0){
-         l_v = vector_pointer[l_v*stride];
+         l_v = vector_pointer[l*stride];
      }
      if (r_v >= 0){
-         r_v = vector_pointer[r_v*stride];
+         r_v = vector_pointer[r*stride];
      }
     return std::make_tuple(l_v, r_v);
 }
@@ -77,7 +75,7 @@ inline std::tuple<scalar_t,scalar_t,scalar_t,scalar_t> infer_bilinear_values(int
     int64_t bl_h = i+shift_H;
     int64_t bl_w = j+shift_W;
     int64_t br_h = i+shift_H;
-    int64_t br_w = j+shift_W+1
+    int64_t br_w = j+shift_W+1;
     int64_t ul_h = i+shift_H+1;
     int64_t ul_w = j+shift_W;
     int64_t ur_h = i+shift_H+1;
@@ -180,7 +178,7 @@ torch::Tensor shift1d_cpu_kernel_active(const torch::Tensor& input,
             scalar_t *out_ptr_NC = out_ptr + n * output_sN + c * output_sC;
             scalar_t *w_ptr_shifts = w_ptr + c * w_sC;
             // init shifts; we use round for shift and floor for bilinear interpolation
-            scalar_t shift = *w_ptr_C;
+            scalar_t shift = *w_ptr_shifts;
             // floor shifts for forward
             int64_t floor_shift = static_cast<int64_t>(std::floor(shift));
             scalar_t diff_shift = shift - static_cast<scalar_t>(floor_shift);
@@ -191,7 +189,7 @@ torch::Tensor shift1d_cpu_kernel_active(const torch::Tensor& input,
                                                                                      inp_ptr_NC, padding_mode);
                 scalar_t *out_ptr_NCH = out_ptr_NC + h * output_sH;
                 *out_ptr_NCH = (1-diff_shift) * std::get<0>(values) +
-                                diff_shift_H * std::get<1>(values);
+                                diff_shift * std::get<1>(values);
                 }
         }    
     });
@@ -199,7 +197,7 @@ torch::Tensor shift1d_cpu_kernel_active(const torch::Tensor& input,
 }
 
 template <typename scalar_t>
-torch::Tensor shift2d_cpu_kernel_quantized(const torch::Tensor& input,
+torch::Tensor shift1d_cpu_kernel_quantized(const torch::Tensor& input,
                                            const torch::Tensor& weights){
     
     auto output = torch::zeros_like(input, input.options());
@@ -256,10 +254,10 @@ torch::Tensor shift2d_cpu_kernel_quantized(const torch::Tensor& input,
 ///BACKWARDS
 ///
 template <typename scalar_t>
-std::vector<torch::Tensor> shift1d_cpu_backward_active(const torch::Tensor& grad,
-                                                       const torch::Tensor& weights,
-                                                       const torch::Tensor& input,
-                                                       BIPadding padding_mode){
+std::vector<torch::Tensor> shift1d_cpu_backward_kernel_active(const torch::Tensor& grad,
+                                                              const torch::Tensor& weights,
+                                                              const torch::Tensor& input,
+                                                              BIPadding padding_mode){
     auto out_grad = torch::zeros_like(grad, grad.options());
     auto weights_grad = torch::zeros_like(weights, weights.options());
     
@@ -311,7 +309,6 @@ std::vector<torch::Tensor> shift1d_cpu_backward_active(const torch::Tensor& grad
             // init shifts for weights backward
             scalar_t shift = *w_ptr_C;
             int64_t floor_shift = static_cast<int64_t>(std::floor(shift));
-            scalar_t diff_shift = shift - static_cast<scalar_t>(floor_shift);
             // init reversed shifts for grad backward
             scalar_t rshift = -shift;
             int64_t floor_rshift = static_cast<int64_t>(std::floor(rshift));
@@ -322,10 +319,10 @@ std::vector<torch::Tensor> shift1d_cpu_backward_active(const torch::Tensor& grad
                     std::tuple<scalar_t,scalar_t> rvalues = infer_linear_values<scalar_t>(h, floor_rshift,
                                                                                           H, input_sH,
                                                                                           inp_ptr_NC, padding_mode);
-                    scalar_t *out_ptr_NCH = out_ptr_NC + h * output_sH;
+                    scalar_t *out_grad_ptr_NCH = out_grad_ptr_NC + h * out_grad_sH;
                     
-                    *out_ptr_NCH = (1-diff_rshift)* std::get<0>(rvalues) +
-                                   diff_rshift_W * std::get<1>(rvalues) ;
+                    *out_grad_ptr_NCH = (1-diff_rshift)* std::get<0>(rvalues) +
+                                         diff_rshift * std::get<1>(rvalues);
                     // weight backward
                     std::tuple<scalar_t,scalar_t> values = infer_linear_values<scalar_t>(h, floor_shift, 
                                                                                          H, input_sH,
@@ -342,10 +339,10 @@ std::vector<torch::Tensor> shift1d_cpu_backward_active(const torch::Tensor& grad
 }
 
 template <typename scalar_t>
-std::vector<torch::Tensor> shift1d_cpu_backward_quantized(const torch::Tensor& grad,
-                                                          const torch::Tensor& weights,
-                                                          const torch::Tensor& input,
-                                                          BIPadding padding_mode){
+std::vector<torch::Tensor> shift1d_cpu_backward_kernel_quantized(const torch::Tensor& grad,
+                                                                 const torch::Tensor& weights,
+                                                                 const torch::Tensor& input,
+                                                                 BIPadding padding_mode){
     auto out_grad = torch::zeros_like(grad, grad.options());
     auto weights_grad = torch::zeros_like(weights, weights.options());
     
@@ -400,7 +397,6 @@ std::vector<torch::Tensor> shift1d_cpu_backward_quantized(const torch::Tensor& g
             int64_t H_shifted = std::max(H - std::abs(rounded_shift),static_cast<int64_t>(0));
             // floor shifts for weights backward
             int64_t floor_shift = static_cast<int64_t>(std::floor(shift));
-            scalar_t diff_shift= shift - static_cast<scalar_t>(floor_shift);
             
                 
             for (int64_t h = 0; h < H_shifted; ++h) {
@@ -480,8 +476,8 @@ torch::Tensor shift2d_cpu_kernel_active(const torch::Tensor& input,
             scalar_t *out_ptr_NC = out_ptr + n * output_sN + c * output_sC;
             scalar_t *w_ptr_shifts = w_ptr + c * w_sC;
             // init shifts; we use round for shift and floor for bilinear interpolation
-            scalar_t shift_H = *w_ptr_C;
-            scalar_t shift_W = w_ptr_C[w_sS];
+            scalar_t shift_H = *w_ptr_shifts;
+            scalar_t shift_W =w_ptr_shifts[w_sS];
             // floor shifts for forward
             int64_t floor_shift_H = static_cast<int64_t>(std::floor(shift_H));
             int64_t floor_shift_W = static_cast<int64_t>(std::floor(shift_W));
@@ -579,10 +575,10 @@ torch::Tensor shift2d_cpu_kernel_quantized(const torch::Tensor& input,
 ///BACKWARDS
 ///
 template <typename scalar_t>
-std::vector<torch::Tensor> shift2d_cpu_backward_active(const torch::Tensor& grad,
-                                                       const torch::Tensor& weights,
-                                                       const torch::Tensor& input,
-                                                       BIPadding padding_mode){
+std::vector<torch::Tensor> shift2d_cpu_backward_kernel_active(const torch::Tensor& grad,
+                                                              const torch::Tensor& weights,
+                                                              const torch::Tensor& input,
+                                                              BIPadding padding_mode){
     auto out_grad = torch::zeros_like(grad, grad.options());
     auto weights_grad = torch::zeros_like(weights, weights.options());
     
@@ -658,12 +654,11 @@ std::vector<torch::Tensor> shift2d_cpu_backward_active(const torch::Tensor& grad
                     std::tuple<scalar_t,scalar_t,scalar_t,scalar_t> rvalues = infer_bilinear_values<scalar_t>(h, w, floor_rshift_H, floor_rshift_W,
                                                                                                               H, W, input_sH, input_sW,
                                                                                                               inp_ptr_NC, padding_mode);
-                    scalar_t *out_ptr_NCHW = out_ptr_NC + h * output_sH + w * output_sW;
-                    
-                    *out_ptr_NCHW = (1-diff_rshift_H)*(1-diff_rshift_W) * std::get<0>(rvalues) +
-                                    (1-diff_rshift_H)*diff_rshift_W * std::get<1>(rvalues) +
-                                    diff_rshift_H*(1-diff_rshift_W) * std::get<2>(rvalues) +
-                                    diff_rshift_H*diff_rshift_W  * std::get<3>(rvalues);
+                    scalar_t *out_grad_ptr_NCHW = out_grad_ptr_NC + h * out_grad_sH + w * out_grad_sW;
+                    *out_grad_ptr_NCHW = (1-diff_rshift_H)*(1-diff_rshift_W) * std::get<0>(rvalues) +
+                                         (1-diff_rshift_H)*diff_rshift_W * std::get<1>(rvalues) +
+                                         diff_rshift_H*(1-diff_rshift_W) * std::get<2>(rvalues) +
+                                         diff_rshift_H*diff_rshift_W  * std::get<3>(rvalues);
                     // weight backward
                     std::tuple<scalar_t,scalar_t,scalar_t,scalar_t> values = infer_bilinear_values<scalar_t>(h, w, floor_shift_H, floor_shift_W,
                                                                                                              H, W, input_sH, input_sW,
@@ -686,10 +681,10 @@ std::vector<torch::Tensor> shift2d_cpu_backward_active(const torch::Tensor& grad
 }
 
 template <typename scalar_t>
-std::vector<torch::Tensor> shift2d_cpu_backward_quantized(const torch::Tensor& grad,
-                                                          const torch::Tensor& weights,
-                                                          const torch::Tensor& input,
-                                                          BIPadding padding_mode){
+std::vector<torch::Tensor> shift2d_cpu_backward_kernel_quantized(const torch::Tensor& grad,
+                                                                 const torch::Tensor& weights,
+                                                                 const torch::Tensor& input,
+                                                                 BIPadding padding_mode){
     auto out_grad = torch::zeros_like(grad, grad.options());
     auto weights_grad = torch::zeros_like(weights, weights.options());
     
@@ -837,15 +832,15 @@ std::vector<torch::Tensor> shift2d_cpu_backward_quantized(const torch::Tensor& g
 torch::Tensor shift1d_cpu(const torch::Tensor& input,
                           const torch::Tensor& weights,
                           int padding_mode,
-                          bool active_flag) {
+                          bool active_flag){
     if (active_flag){
         return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
-            return shift1d_cpu_kernel_active<scalar_t>(input, weights,  static_cast<BIPadding>(padding_mode));
+            return shift1d_cpu_kernel_active<scalar_t>(input, weights, static_cast<BIPadding>(padding_mode));
         });   
     }
     else {
-       return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
-            return shift1d_cpu_kernel_quantized<scalar_t>(input, weights));
+       return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
+            return shift1d_cpu_kernel_quantized<scalar_t>(input, weights);
         }); 
     }
 }
@@ -878,7 +873,7 @@ torch::Tensor shift2d_cpu(const torch::Tensor& input,
     }
     else {
        return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
-            return shift2d_cpu_kernel_quantized<scalar_t>(input, weights));
+            return shift2d_cpu_kernel_quantized<scalar_t>(input, weights);
         }); 
     }
 }
@@ -903,8 +898,8 @@ std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& grad,
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
-    m.def("shift1d_cpu", &shift2d_cpu, "1D Shift operation forward (cpu)");
-    m.def("shift1d_backward_cpu", &shift2d_backward_cpu, "1D Shift operator backward (cpu)");
+    m.def("shift1d_cpu", &shift1d_cpu, "1D Shift operation forward (cpu)");
+    m.def("shift1d_backward_cpu", &shift1d_backward_cpu, "1D Shift operator backward (cpu)");
     m.def("shift2d_cpu", &shift2d_cpu, "2D Shift operation forward (cpu)");
     m.def("shift2d_backward_cpu", &shift2d_backward_cpu, "2D Shift operator backward (cpu)");
 }
