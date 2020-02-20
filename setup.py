@@ -28,7 +28,7 @@ if CUDA_HOME:
 
 setup(
     name='torchshifts',
-    version='1.0',
+    version='1.1b',
     description='Implementation of Sparse Active Shift https://arxiv.org/pdf/1903.05285.pdf for PyTorch',
     keywords=['shifts','activeshifts', 'shiftspytorch'],
     author='Ignatii Dubyshkin',
