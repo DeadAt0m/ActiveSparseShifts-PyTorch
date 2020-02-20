@@ -317,8 +317,8 @@ std::vector<torch::Tensor> shift1d_cpu_backward_kernel_active(const torch::Tenso
             for  (int64_t h = 0; h < H; ++h) {
                     // active grad backward 
                     std::tuple<scalar_t,scalar_t> rvalues = infer_linear_values<scalar_t>(h, floor_rshift,
-                                                                                          H, input_sH,
-                                                                                          inp_ptr_NC, padding_mode);
+                                                                                          H, grad_sH,
+                                                                                          grad_ptr_NC, padding_mode);
                     scalar_t *out_grad_ptr_NCH = out_grad_ptr_NC + h * out_grad_sH;
                     
                     *out_grad_ptr_NCH = (1-diff_rshift)* std::get<0>(rvalues) +
@@ -648,12 +648,12 @@ std::vector<torch::Tensor> shift2d_cpu_backward_kernel_active(const torch::Tenso
             scalar_t diff_rshift_H = rshift_H - static_cast<scalar_t>(floor_rshift_H);
             scalar_t diff_rshift_W = rshift_W - static_cast<scalar_t>(floor_rshift_W);
 
-            for  (int64_t h = 0; h < H; ++h) {
+            for (int64_t h = 0; h < H; ++h) {
                for (int64_t w = 0; w < W; ++w) {
                     // active grad backward 
                     std::tuple<scalar_t,scalar_t,scalar_t,scalar_t> rvalues = infer_bilinear_values<scalar_t>(h, w, floor_rshift_H, floor_rshift_W,
-                                                                                                              H, W, input_sH, input_sW,
-                                                                                                              inp_ptr_NC, padding_mode);
+                                                                                                              H, W, grad_sH, grad_sW,
+                                                                                                              grad_ptr_NC, padding_mode);
                     scalar_t *out_grad_ptr_NCHW = out_grad_ptr_NC + h * out_grad_sH + w * out_grad_sW;
                     *out_grad_ptr_NCHW = (1-diff_rshift_H)*(1-diff_rshift_W) * std::get<0>(rvalues) +
                                          (1-diff_rshift_H)*diff_rshift_W * std::get<1>(rvalues) +

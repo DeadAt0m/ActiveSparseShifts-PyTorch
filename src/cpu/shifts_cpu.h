@@ -4,7 +4,7 @@
 #include <torch/extension.h>
 
 
-// padding used during bilinear interpolation(backward computation)
+// padding used during bilinear interpolation
 enum class BIPadding {Zeros, Border, Reflect, Symmetric};
 
 
