@@ -1,4 +1,4 @@
-PyTorch implementation of Sparse Shift Layer(SSL)(currently for 4D tensors HxCxHxW) from "All You Need is a Few Shifts: Designing Efficient Convolutional Neural Networks
+PyTorch implementation of Sparse Shift Layer(SSL) for 3D and 4D tensors  from "All You Need is a Few Shifts: Designing Efficient Convolutional Neural Networks
 for Image Classification" (https://arxiv.org/pdf/1903.05285.pdf) 
 
 Shift operation: shifts tensor data(in memory) by indexes. Value and direction of shift are learnable and different between channels.
@@ -20,18 +20,17 @@ Note: by default shift is not circular, it's filling stayed out values(after shi
     
 ## Using:
     
-    from torchshifts import Shift2D
+    from torchshifts import Shift1D, Shift2D
     shift_layer = Shift2D(in_channels=3)
 
 There is additional options for shift layer:
 
     padding(str) - Padding added to the input during bilinear interpolation(currently, during backward pass).
-                   Allowed: ['zeros', 'border']. Default: 'zeros'.
+                   Allowed: ['zeros', 'border', 'reflect', 'symmetric']. Default: 'zeros'.
     init_stride(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
     sparsity_term(float) - Strength of sparsity. Default: 5e-4.
+    active_flag(bool) - Unquantized Active Shift like in original article (https://arxiv.org/pdf/1806.07370.pdf). Default: False
 
 
-## Further plans:
-  1. Add tests
-  2. Shift1D - layer for 3D tensor
-  3. Forward/backward without rounding approximation as in(https://arxiv.org/abs/1806.07370)
+## TO DO:
+  1. Add unit tests
