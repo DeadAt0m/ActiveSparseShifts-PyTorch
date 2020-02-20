@@ -43,12 +43,12 @@ class shift1d_func(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_ouput):
+    def backward(ctx, grad_output):
         input, weight = ctx.saved_tensors
         if input.is_cuda:
-            grad_input, grad_weight = shift2d_backward_gpu(input, weight, input, ctx.padding_mode, ctx.active_flag)
+            grad_input, grad_weight = shift1d_backward_gpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
         else:
-            grad_input, grad_weight = shift2d_backward_cpu(input, weight, input, ctx.padding_mode, ctx.active_flag)
+            grad_input, grad_weight = shift1d_backward_cpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
         return grad_input, grad_weight, None    
     
 
@@ -78,12 +78,12 @@ class shift2d_func(Function):
         return output
 
     @staticmethod
-    def backward(ctx, grad_ouput):
+    def backward(ctx, grad_output):
         input, weight = ctx.saved_tensors
         if input.is_cuda:
-            grad_input, grad_weight = shift2d_backward_gpu(input, weight, input, ctx.padding_mode, ctx.active_flag)
+            grad_input, grad_weight = shift2d_backward_gpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
         else:
-            grad_input, grad_weight = shift2d_backward_cpu(input, weight, input, ctx.padding_mode, ctx.active_flag)
+            grad_input, grad_weight = shift2d_backward_cpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
         return grad_input, grad_weight, None
 
     
@@ -91,7 +91,7 @@ class shift2d_func(Function):
     
 class Shift1D(nn.Module):
     """
-        Performs (index)shift operation under 3D tensor. Zero-FLOPs replacement of Depth-wise convolution.
+        Performs (index)shift operation under 3D tensor. Zero-FLOPs replacement of Depth-Wise convolution.
         
         Note:Shift values and directions is learnable for each channel.
        
@@ -107,7 +107,7 @@ class Shift1D(nn.Module):
                  init_stride = 1,
                  sparsity_term=5e-4,
                  active_flag=False):
-        super(Shift2D, self).__init__()
+        super(Shift1D, self).__init__()
         self.padding_dict = {'zeros':0, 'border':1, 'reflect':2, 'symmetric':3}
         assert padding.lower() in self.padding_dict.keys(), f'incorrect padding option: {padding}'
         self.padding = self.padding_dict[padding]
@@ -130,7 +130,7 @@ class Shift1D(nn.Module):
     
 class Shift2D(nn.Module):
     """
-        Performs (index)shift operation under 4D tensor(by h and w axes). Zero-FLOPs replacement of Depth-wise convolution.
+        Performs (index)shift operation under 4D tensor(by h and w axes). Zero-FLOPs replacement of Depth-Wise convolution.
         
         Note:Shift values and directions is learnable for each channel.
        

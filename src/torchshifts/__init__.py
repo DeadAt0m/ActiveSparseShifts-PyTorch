@@ -1,1 +1,1 @@
-from .shifts import Shift2D, Shift1D
+from .shifts import Shift1D, Shift2D
