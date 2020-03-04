@@ -25,7 +25,7 @@ Note: by default shift is not circular, it's filling stayed out values(after shi
 
 There is additional options for shift layer:
 
-    padding(str) - Padding added to the input during bilinear interpolation(currently, during backward pass).
+    padding(str) - Padding added to the input during bilinear interpolation.
                    Allowed: ['zeros', 'border', 'reflect', 'symmetric']. Default: 'zeros'.
     init_stride(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
     sparsity_term(float) - Strength of sparsity. Default: 5e-4.
