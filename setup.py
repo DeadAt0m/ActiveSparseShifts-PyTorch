@@ -24,7 +24,7 @@ if CUDA_HOME:
                       ['src/cuda/shifts_cuda.cpp',
                        'src/cuda/shifts_cuda_kernel.cu'])
     )
-
+print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
 
 setup(
     name='torchshifts',
