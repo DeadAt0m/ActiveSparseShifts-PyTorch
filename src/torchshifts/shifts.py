@@ -49,7 +49,7 @@ class shift1d_func(Function):
             grad_input, grad_weight = shift1d_backward_gpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
         else:
             grad_input, grad_weight = shift1d_backward_cpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
-        return grad_input, grad_weight, None    
+        return grad_input, grad_weight, None, None  
     
 
 class shift2d_func(Function):
@@ -84,7 +84,7 @@ class shift2d_func(Function):
             grad_input, grad_weight = shift2d_backward_gpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
         else:
             grad_input, grad_weight = shift2d_backward_cpu(grad_output, weight, input, ctx.padding_mode, ctx.active_flag)
-        return grad_input, grad_weight, None
+        return grad_input, grad_weight, None, None
 
     
     
