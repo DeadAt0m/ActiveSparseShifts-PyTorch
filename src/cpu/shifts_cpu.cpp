@@ -833,23 +833,33 @@ torch::Tensor shift1d_cpu(const torch::Tensor& input,
                           const torch::Tensor& weights,
                           int padding_mode,
                           bool active_flag){
-    if (active_flag){
-        return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
-            return shift1d_cpu_kernel_active<scalar_t>(input, weights, static_cast<BIPadding>(padding_mode));
-        });   
-    }
-    else {
-       return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
-            return shift1d_cpu_kernel_quantized<scalar_t>(input, weights);
+    torch::Tensor output;
+    if (input.is_quantized()){ 
+        AT_DISPATCH_QINT_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
+            output = shift1d_cpu_kernel_quantized<scalar_t>(input, weights);
         }); 
     }
+    else {
+        if (active_flag){
+            AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
+                output = shift1d_cpu_kernel_active<scalar_t>(input, weights, static_cast<BIPadding>(padding_mode));
+            });   
+        }
+        else {
+             AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
+                output = shift1d_cpu_kernel_quantized<scalar_t>(input, weights);
+            }); 
+        }
+    }
+    return output;
 }
+
 
 std::vector<torch::Tensor> shift1d_backward_cpu(const torch::Tensor& grad,
                                                 const torch::Tensor& weights,
                                                 const torch::Tensor& input,
                                                 int padding_mode,
-                                                bool active_flag) {
+                                                      bool active_flag) {
   if (active_flag){
       return AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "shift1d_backward_cpu", [&] {
         return shift1d_cpu_backward_kernel_active<scalar_t>(grad, weights, input, static_cast<BIPadding>(padding_mode));
@@ -862,20 +872,31 @@ std::vector<torch::Tensor> shift1d_backward_cpu(const torch::Tensor& grad,
   }
 }
 
+
+
 torch::Tensor shift2d_cpu(const torch::Tensor& input,
                           const torch::Tensor& weights,
                           int padding_mode,
                           bool active_flag) {
-    if (active_flag){
-        return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
-            return shift2d_cpu_kernel_active<scalar_t>(input, weights,  static_cast<BIPadding>(padding_mode));
-        });   
-    }
-    else {
-       return AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
-            return shift2d_cpu_kernel_quantized<scalar_t>(input, weights);
+   torch::Tensor output;
+    if (input.is_quantized()){ 
+        AT_DISPATCH_QINT_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
+            output = shift2d_cpu_kernel_quantized<scalar_t>(input, weights);
         }); 
     }
+    else {
+        if (active_flag){
+            AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
+                output = shift2d_cpu_kernel_active<scalar_t>(input, weights, static_cast<BIPadding>(padding_mode));
+            });   
+        }
+        else {
+             AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
+                output = shift2d_cpu_kernel_quantized<scalar_t>(input, weights);
+            }); 
+        }
+    }
+    return output;
 }
 
 
@@ -895,6 +916,7 @@ std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& grad,
       });
   }
 }
+
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
