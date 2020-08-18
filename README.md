@@ -12,7 +12,7 @@ Sparse Shift Layer is quantized and sparse version of Active Shift(https://arxiv
 Note: by default shift is not circular, it's filling stayed out values(after shift) by 0.
 
 ## Requirements:
-    PyTorch >= 1.4.0
+    PyTorch >= 1.6.0
 
 ## Instalation:
     1. Run *python setup.py build_ext* - this builds cpp extensions for CPU and GPU(if detected)
@@ -34,13 +34,11 @@ There is additional options for shift layer:
 ## PyTorch Quantization:
    To use shifts with PyTorch Quantization just do following:
    
-    quant_mapping = torch.quantization.default_mappings.DEFAULT_MODULE_MAPPING
-    quant_mapping.update({torchshifts.Shift2D: torchshifts.quantized_shifts.Shift2D})
+    from torchshifts.quantized import quant_mapping
     torch.quantization.convert(model_with_Shift_module, ..., mapping=quant_mapping)
     
    Note! That's shift operation itself does not need the requantization and hence activation tracking, because it does not changes tensor values.
-   However, **DO NOT USE ZERO PADDING** during training if you want use PyTorch Quantization further.
 
 ## TO DO:
   1. Add unit tests
-  2. Add zero_point usage to shift_forward_quantize operation
+  2. Fuse 1d and 2d kernel in one function

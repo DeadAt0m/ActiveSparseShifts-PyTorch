@@ -197,9 +197,9 @@ torch::Tensor shift1d_cpu_kernel_active(const torch::Tensor& input,
 }
 
 template <typename scalar_t>
-torch::Tensor shift1d_cpu_kernel_quantized(const torch::Tensor& input,
-                                           const torch::Tensor& weights){
-    
+torch::Tensor shift1d_cpu_kernel(const torch::Tensor& input,
+                                 const torch::Tensor& weights){
+     
     auto output = torch::zeros_like(input, input.options());
 
     int64_t N = input.size(0);
@@ -245,6 +245,77 @@ torch::Tensor shift1d_cpu_kernel_quantized(const torch::Tensor& input,
                 scalar_t *out_ptr_NCH = out_ptr_NC + out_h * output_sH;
                 *out_ptr_NCH = inp_ptr_NC[inp_h * input_sH];                   
 
+            }
+        }    
+    });
+    return output;
+}
+
+
+template <typename scalar_t>
+torch::Tensor shift1d_cpu_kernel_quantized(const torch::Tensor& input,
+                                           const torch::Tensor& weights){
+    
+    
+//     auto output = at::_make_per_tensor_quantized_tensor(torch::zeros(input.sizes(), input.options().dtype(torch::kFloat)),
+//                                                         input.q_scale(), input.q_zero_point());
+    
+    auto output = at::_empty_affine_quantized(input.sizes(), input.options(), input.q_scale(), input.q_zero_point());
+    
+    scalar_t zero_point = static_cast<scalar_t>(input.q_zero_point());
+    int64_t w_zero_point = static_cast<int64_t>(weights.q_zero_point());
+
+    int64_t N = input.size(0);
+    int64_t C = input.size(1);
+    int64_t H = input.size(2);
+    
+    int64_t input_sN = input.stride(0);
+    int64_t input_sC = input.stride(1);
+    int64_t input_sH = input.stride(2);
+    
+    int64_t output_sN = output.stride(0);
+    int64_t output_sC = output.stride(1);
+    int64_t output_sH = output.stride(2);
+    
+    int64_t w_sC = weights.stride(0);
+
+    scalar_t *inp_ptr = input.data_ptr<scalar_t>();
+    scalar_t *out_ptr = output.data_ptr<scalar_t>();
+    scalar_t *w_ptr = weights.data_ptr<scalar_t>();
+    
+    at::parallel_for(0, N*C, 0, [&](int64_t start, int64_t end){
+        for (int64_t idx = start; idx < end; ++idx) {
+            int64_t n = idx / C;
+            int64_t c = idx % C;
+            scalar_t *inp_ptr_NC = inp_ptr + n * input_sN + c * input_sC;
+            scalar_t *out_ptr_NC = out_ptr + n * output_sN + c * output_sC;
+            scalar_t *w_ptr_shifts = w_ptr + c * w_sC;
+            
+            int64_t shift = static_cast<int64_t>(w_ptr_shifts->val_) - w_zero_point;
+            int64_t H_shifted = std::max(H - std::abs(shift), static_cast<int64_t>(0));
+            
+            
+            for (int64_t h = 0; h < H_shifted; ++h) {
+                int64_t inp_h = h;
+                int64_t out_h = h;               
+                if (shift > 0){
+                    out_h += std::abs(shift);
+                }
+                if (shift < 0){
+                    inp_h += std::abs(shift);
+                }
+   
+                scalar_t *out_ptr_NCH = out_ptr_NC + out_h * output_sH;
+                *out_ptr_NCH = inp_ptr_NC[inp_h * input_sH];                   
+            }
+            // filling with zero point
+            for (int64_t h = 0; h < std::abs(shift); ++h){
+                int64_t out_h = h;
+                 if (shift < 0){ out_h += H_shifted;}
+                
+                scalar_t *out_ptr_NCH = out_ptr_NC + out_h * output_sH;
+                *out_ptr_NCH = zero_point;          
+                
             }
         }    
     });
@@ -339,10 +410,10 @@ std::vector<torch::Tensor> shift1d_cpu_backward_kernel_active(const torch::Tenso
 }
 
 template <typename scalar_t>
-std::vector<torch::Tensor> shift1d_cpu_backward_kernel_quantized(const torch::Tensor& grad,
-                                                                 const torch::Tensor& weights,
-                                                                 const torch::Tensor& input,
-                                                                 BIPadding padding_mode){
+std::vector<torch::Tensor> shift1d_cpu_backward_kernel(const torch::Tensor& grad,
+                                                       const torch::Tensor& weights,
+                                                       const torch::Tensor& input,
+                                                       BIPadding padding_mode){
     auto out_grad = torch::zeros_like(grad, grad.options());
     auto weights_grad = torch::zeros_like(weights, weights.options());
     
@@ -504,8 +575,8 @@ torch::Tensor shift2d_cpu_kernel_active(const torch::Tensor& input,
 }
 
 template <typename scalar_t>
-torch::Tensor shift2d_cpu_kernel_quantized(const torch::Tensor& input,
-                                           const torch::Tensor& weights){
+torch::Tensor shift2d_cpu_kernel(const torch::Tensor& input,
+                                 const torch::Tensor& weights){
     
     auto output = torch::zeros_like(input, input.options());
 
@@ -567,6 +638,97 @@ torch::Tensor shift2d_cpu_kernel_quantized(const torch::Tensor& input,
                     *out_ptr_NCHW = inp_ptr_NC[inp_h * input_sH + inp_w * input_sW];                   
                 }
             }
+        }    
+    });
+    return output;
+}
+
+template <typename scalar_t>
+torch::Tensor shift2d_cpu_kernel_quantized(const torch::Tensor& input,
+                                           const torch::Tensor& weights){
+    
+    auto output = at::_empty_affine_quantized(input.sizes(), input.options(), input.q_scale(), input.q_zero_point());
+    
+    scalar_t zero_point = static_cast<scalar_t>(input.q_zero_point());
+    int64_t w_zero_point = static_cast<int64_t>(weights.q_zero_point());
+    
+    int64_t N = input.size(0);
+    int64_t C = input.size(1);
+    int64_t H = input.size(2);
+    int64_t W = input.size(3);
+    
+    int64_t input_sN = input.stride(0);
+    int64_t input_sC = input.stride(1);
+    int64_t input_sH = input.stride(2);
+    int64_t input_sW = input.stride(3);
+    
+    int64_t output_sN = output.stride(0);
+    int64_t output_sC = output.stride(1);
+    int64_t output_sH = output.stride(2);
+    int64_t output_sW = output.stride(3);
+    
+    int64_t w_sC = weights.stride(0);
+    int64_t w_sS = weights.stride(1);
+
+    scalar_t *inp_ptr = input.data_ptr<scalar_t>();
+    scalar_t *out_ptr = output.data_ptr<scalar_t>();
+    scalar_t *w_ptr = weights.data_ptr<scalar_t>();
+    
+    at::parallel_for(0, N*C, 0, [&](int64_t start, int64_t end){
+        for (int64_t idx = start; idx < end; ++idx) {
+            int64_t n = idx / C;
+            int64_t c = idx % C;
+            scalar_t *inp_ptr_NC = inp_ptr + n * input_sN + c * input_sC;
+            scalar_t *out_ptr_NC = out_ptr + n * output_sN + c * output_sC;
+            scalar_t *w_ptr_shifts = w_ptr + c * w_sC;
+            
+            int64_t shift_H = static_cast<int64_t>(w_ptr_shifts->val_) - w_zero_point;
+            int64_t shift_W = static_cast<int64_t>(w_ptr_shifts[w_sS].val_) - w_zero_point;
+            int64_t H_shifted = std::max(H - std::abs(shift_H),static_cast<int64_t>(0));
+            int64_t W_shifted = std::max(W - std::abs(shift_W),static_cast<int64_t>(0));
+            
+            
+            for (int64_t h = 0; h < H_shifted; ++h) {
+                int64_t inp_h = h;
+                int64_t out_h = h;               
+                if (shift_H > 0){
+                    out_h += std::abs(shift_H);
+                }
+                if (shift_H < 0){
+                    inp_h += std::abs(shift_H);
+                }
+                for (int64_t w = 0; w < W_shifted; ++w) {
+                    int64_t inp_w = w;
+                    int64_t out_w = w;     
+                    if (shift_W > 0){
+                        out_w += std::abs(shift_W);
+                    }
+                    if (shift_W < 0){
+                        inp_w += std::abs(shift_W);
+                    }
+                    scalar_t *out_ptr_NCHW = out_ptr_NC + out_h * output_sH + out_w * output_sW;
+                    *out_ptr_NCHW = inp_ptr_NC[inp_h * input_sH + inp_w * input_sW];                   
+                }
+                //fill zero_point values
+                for (int64_t w = 0; w < std::abs(shift_W); ++w){
+                    int64_t out_w = w;
+                    if (shift_W < 0){ out_w += W_shifted;}
+                    scalar_t *out_ptr_NCHW = out_ptr_NC + out_h * output_sH + out_w * output_sW;
+                    *out_ptr_NCHW = zero_point; 
+                }
+            }
+            // fill zero_point values
+            for (int64_t h = 0; h < std::abs(shift_H); ++h){
+                int64_t out_h = h;
+                if (shift_H < 0){ out_h += H_shifted;}
+                for (int64_t w = 0; w < W; ++w){
+                    int64_t out_w = w;
+                    scalar_t *out_ptr_NCHW = out_ptr_NC + out_h * output_sH + out_w * output_sW;
+                    *out_ptr_NCHW = zero_point;          
+                
+                }
+            }
+            
         }    
     });
     return output;
@@ -681,10 +843,10 @@ std::vector<torch::Tensor> shift2d_cpu_backward_kernel_active(const torch::Tenso
 }
 
 template <typename scalar_t>
-std::vector<torch::Tensor> shift2d_cpu_backward_kernel_quantized(const torch::Tensor& grad,
-                                                                 const torch::Tensor& weights,
-                                                                 const torch::Tensor& input,
-                                                                 BIPadding padding_mode){
+std::vector<torch::Tensor> shift2d_cpu_backward_kernel(const torch::Tensor& grad,
+                                                       const torch::Tensor& weights,
+                                                       const torch::Tensor& input,
+                                                       BIPadding padding_mode){
     auto out_grad = torch::zeros_like(grad, grad.options());
     auto weights_grad = torch::zeros_like(weights, weights.options());
     
@@ -847,7 +1009,7 @@ torch::Tensor shift1d_cpu(const torch::Tensor& input,
         }
         else {
              AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift1d_cpu", [&] {
-                output = shift1d_cpu_kernel_quantized<scalar_t>(input, weights);
+                output = shift1d_cpu_kernel<scalar_t>(input, weights);
             }); 
         }
     }
@@ -867,7 +1029,7 @@ std::vector<torch::Tensor> shift1d_backward_cpu(const torch::Tensor& grad,
   }
   else {
       return AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "shift1d_backward_cpu", [&] {
-        return shift1d_cpu_backward_kernel_quantized<scalar_t>(grad, weights, input, static_cast<BIPadding>(padding_mode));
+        return shift1d_cpu_backward_kernel<scalar_t>(grad, weights, input, static_cast<BIPadding>(padding_mode));
       });
   }
 }
@@ -892,7 +1054,7 @@ torch::Tensor shift2d_cpu(const torch::Tensor& input,
         }
         else {
              AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shift2d_cpu", [&] {
-                output = shift2d_cpu_kernel_quantized<scalar_t>(input, weights);
+                output = shift2d_cpu_kernel<scalar_t>(input, weights);
             }); 
         }
     }
@@ -912,7 +1074,7 @@ std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& grad,
   }
   else {
       return AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "shift2d_backward_cpu", [&] {
-        return shift2d_cpu_backward_kernel_quantized<scalar_t>(grad, weights, input, static_cast<BIPadding>(padding_mode));
+        return shift2d_cpu_backward_kernel<scalar_t>(grad, weights, input, static_cast<BIPadding>(padding_mode));
       });
   }
 }
