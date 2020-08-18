@@ -112,6 +112,7 @@ class Shift1D(nn.Module):
         assert padding.lower() in self.padding_dict.keys(), f'incorrect padding option: {padding}'
         self.padding = self.padding_dict[padding]
         self.sparsity_term = sparsity_term
+        self.in_channels = in_channels
         self.weight = nn.Parameter(torch.Tensor(in_channels))
         self.reset_parameters(init_stride)
         self.__active = active_flag
@@ -150,6 +151,7 @@ class Shift2D(nn.Module):
         self.padding_dict = {'zeros':0, 'border':1, 'reflect':2, 'symmetric':3}
         assert padding.lower() in self.padding_dict.keys(), f'incorrect padding option: {padding}'
         self.padding = self.padding_dict[padding]
+        self.in_channels = in_channels
         self.sparsity_term = sparsity_term
         self.weight = nn.Parameter(torch.Tensor(in_channels,2))
         self.reset_parameters(init_stride)
