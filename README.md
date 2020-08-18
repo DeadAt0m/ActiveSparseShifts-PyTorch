@@ -31,6 +31,16 @@ There is additional options for shift layer:
     sparsity_term(float) - Strength of sparsity. Default: 5e-4.
     active_flag(bool) - Unquantized Active Shift like in original article (https://arxiv.org/pdf/1806.07370.pdf). Default: False
 
+## PyTorch Quantization:
+   To use shifts with PyTorch Quantization just do following:
+   
+    quant_mapping = torch.quantization.default_mappings.DEFAULT_MODULE_MAPPING
+    quant_mapping.update({torchshifts.Shift2D: torchshifts.quantized_shifts.Shift2D})
+    torch.quantization.convert(model_with_Shift_module, ..., mapping=quant_mapping)
+    
+   Note! That's shift operation itself does not need the requantization and hence activation tracking, because it does not changes tensor values.
+   However, **DO NOT USE ZERO PADDING** during training if you want use PyTorch Quantization further.
 
 ## TO DO:
   1. Add unit tests
+  2. Add zero_point usage to shift_forward_quantize operation
