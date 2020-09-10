@@ -1,7 +1,7 @@
 PyTorch implementation of Sparse Shift Layer(SSL) for 3D and 4D tensors  from "All You Need is a Few Shifts: Designing Efficient Convolutional Neural Networks
 for Image Classification" (https://arxiv.org/pdf/1903.05285.pdf) 
 
-(**I am not the author** any of mentioned articles, I just implement it for my own purposes)
+(**I am not the author** any of mentioned articles, I just implement this for my own purposes)
 
 
 Shift operation: shifts tensor data(in memory) by indexes. Value and direction of shift are learnable and different between channels.
