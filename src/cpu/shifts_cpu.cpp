@@ -55,10 +55,10 @@ inline std::tuple<scalar_t,scalar_t> infer_linear_values(int64_t i, int64_t shif
      }
      scalar_t l_v = 0;
      scalar_t r_v = 0;    
-     if (l_v >= 0){
+     if (l >= 0){
          l_v = vector_pointer[l*stride];
      }
-     if (r_v >= 0){
+     if (r >= 0){
          r_v = vector_pointer[r*stride];
      }
     return std::make_tuple(l_v, r_v);
