@@ -1,2 +1,4 @@
-#include "shifts_kernels.h"
+#include "shifts.h"
+
+inline void 
 
