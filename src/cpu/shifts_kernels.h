@@ -3,7 +3,6 @@
 #define FLOOR(a) (std::floor(a))
 
 #include "interpolation.h"
-
 enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 
 template<typename T>
@@ -11,8 +10,9 @@ inline T mod(T a, T b){return (b + (a % b)) % b;}
 
 template<typename idx_t>
 inline idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
-    if ((len == 0) || ((index < len) && (index >= 0))) {return index};
-//     (len == 0) is used just for bypassing, in case when tensor dimension are not available 
+    if (len == 1){return 0;}
+    //     (len == 1) is used just for bypassing, in case when tensor dimension are not available 
+    if ((index < len) && (index >= 0)) {return index;};
     idx_t out_index = index;
     switch (padding_mode){        
         case BIPadding::Zeros: 
@@ -50,8 +50,8 @@ inline scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
     idx_t tidx_j = 0;
     idx_t tidx_k = 0;
     tidx_i = infer_index<idx_t>(i_shifted, sizeH, padding_mode);
-    if (sizeW>1){ tidx_j = infer_index<idx_t>(j_shifted, sizeW, padding_mode); }
-    if (sizeD>1){ tidx_k = infer_index<idx_t>(k_shifted, sizeD, padding_mode); } 
+    tidx_j = infer_index<idx_t>(j_shifted, sizeW, padding_mode);
+    tidx_k = infer_index<idx_t>(k_shifted, sizeD, padding_mode); 
     if ((tidx_i>=0)&&(tidx_j>=0)&&(tidx_k>=0)){ val = array[tidx_i*strideH+tidx_j*strideW+tidx_k*strideD+c*strideC]; }
     return val;
 }
@@ -63,28 +63,29 @@ inline scalar_t* get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                                     idx_t c, idx_t strideC,
                                     scalar_t* array, scalar_t zero_point, 
                                     BIPadding padding_mode){
-    scalar_t values[8] = {zero_point, zero_point, zero_point, zero_point, zero_point, zero_point, zero_point, zero_point};
+    static scalar_t values[8] = {zero_point, zero_point, zero_point, zero_point,
+                                 zero_point, zero_point, zero_point, zero_point};
     values[0] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
                                   k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
     values[1] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
                                   k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
-    if (sizeW<=1) {values[2] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
+    if (sizeW>1) {values[2] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
                                                    k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode)};
-    if (sizeW<=1) {values[3] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
+    if (sizeW>1) {values[3] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
                                                    k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode)};                                               
-    if (sizeD<=1) {values[4] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
+    if (sizeD>1) {values[4] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
                                                    k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode)};
-    if (sizeD<=1) {values[5] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
+    if (sizeD>1) {values[5] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
                                                    k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode)};
-    if (sizeD<=1) {values[6] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
+    if (sizeD>1) {values[6] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
                                                    k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode)};
-    if (sizeD<=1) {values[7] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
+    if (sizeD>1) {values[7] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
                                                    k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode)};  
     return values;
 }
 
 template <typename scalar_t, typename idx_t, bool reverse=false>
-inline scalar_t* compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
+inline scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
                                      idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t zero_point){
     scalar_t rcoeff = static_cast<scalar_t>((reverse)?-1:1);
     scalar_t res = zero_point;
@@ -92,14 +93,14 @@ inline scalar_t* compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_
                               rcoeff*diff_shiftH, rcoeff*diff_shiftW, rcoeff*diff_shiftD);}
     else if (sizeW>1){res=interp2D(v[0], v[1], v[2], v[3], 
                                    rcoeff*diff_shiftH, rcoeff*diff_shiftW);}
-    else if (sizeH>1){res=interp1D(v[0], v[1], rcoeff*diff_shiftH);}
+    else {res=interp1D(v[0], v[1], rcoeff*diff_shiftH);}
     return res;
 }
 
 template <typename scalar_t, typename idx_t>
 inline scalar_t* compute_weight_gradient(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
                                          idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t zero_point){
-    scalar_t grad[3] = {zero_point, zero_point, zero_point};
+    stativ scalar_t grad[3] = {zero_point, zero_point, zero_point};
     if (sizeD>1){
         grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
                             diff_shiftW, diff_shiftD);
@@ -155,7 +156,7 @@ inline void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
         scalar_t *dshifts[3] = {dweights + c*dweights_sC, 0, 0};
         if (sizeW>1){dshifts[1] = dshifts[0][dweights_sS];}
         if (sizeD>1){dshifts[2] = dshifts[0][2*dweights_sS];}
-        val = compute_interpolated<scalar_t,idx_t,false>(tmp, dshifts[0], dshifts[1], dshifts[2],
+        val = compute_interpolated<scalar_t,idx_t,false>(tmp, *dshifts[0], *dshifts[1], *dshifts[2],
                                                          sizeH, sizeW, sizeD, zero_point);
         }
     }
