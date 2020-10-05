@@ -1,5 +1,5 @@
 #define ABS(a) (std::abs(a))
-#define ROUND(a,do_floor) ((do_floor)?(std::floor(a)):(std::round(a)))
+#define ROUND(a, do_floor) ((do_floor)?(std::floor(a)):(std::round(a)))
 #define FLOOR(a) (std::floor(a))
 
 #include "interpolation.h"
@@ -123,7 +123,7 @@ inline scalar_t* compute_weight_gradient(scalar_t* v, scalar_t diff_shiftH, scal
     return grad;
 }
 
-template <typename scalar_t, typename idx_t, bool quantized=false>
+template <typename scalar_t, typename idx_t, bool quantized=false, bool active=false>
 inline void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
                                        idx_t* weights, scalar_t* dweights,
                                        idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
@@ -131,25 +131,21 @@ inline void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
                                        idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
                                        idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
                                        idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
-                                       scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode, bool active_flag){
+                                       scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
     scalar_t *input_NC = input + n*input_sN + c*input_sC;
     scalar_t *output_NCHWD= output + n*output_sN + c*output_sC + i*output_sH + j*output_sW + k*output_sD;
     scalar_t val;
     idx_t shifts[3] = {*(weights+c*weights_sC) - weights_zero_point, 0, 0};
     if (sizeW>1){shifts[1] = *(weights+c*weights_sC+weights_sS) - weights_zero_point;}
     if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sC) - weights_zero_point;}
-    if (quantized){
-        val = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                                 j+shifts[1], sizeW, input_sW,
-                                                 k+shifts[2], sizeD, input_sD,
-                                                 0, 0, input_NC, zero_point, padding_mode);
-    } else {
-        val = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                                 j+shifts[1], sizeW, input_sW,
-                                                 k+shifts[2], sizeD, input_sD,
-                                                 0, 0, input_NC, zero_point, padding_mode);
-
-        if (active_flag){
+    if ((quantized)||(!active))
+    {
+        val = get_shifted_value<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
+                                                j+shifts[1], sizeW, input_sW,
+                                                k+shifts[2], sizeD, input_sD,
+                                                0, 0, input_NC, zero_point, padding_mode);
+    } else
+    {
         scalar_t* tmp = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                                            j+shifts[1], sizeW, input_sW,
                                                            k+shifts[2], sizeD, input_sD,
@@ -159,21 +155,20 @@ inline void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
         if (sizeD>1){dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
         val = compute_interpolated<scalar_t,idx_t,false>(tmp, dshifts[0], dshifts[1], dshifts[2],
                                                          sizeH, sizeW, sizeD, zero_point);
-        }
     }
     *output_NCHWD = val;
 }
 
-template <typename scalar_t, typename idx_t>
+template <typename scalar_t, typename idx_t, bool active=false>
 inline void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
-                                       idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
-                                       idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
-                                       idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                       idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
-                                       idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                       idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
-                                       idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
-                                       BIPadding padding_mode, bool active_flag){
+                                        idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
+                                        idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
+                                        idx_t sizeH, idx_t sizeW, idx_t sizeD,
+                                        idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
+                                        idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
+                                        idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
+                                        idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
+                                        BIPadding padding_mode){
     scalar_t *input_grad_NC = input_grad + n*input_grad_sN + c*input_grad_sC;
     scalar_t input_grad_NCHWD_val = input_grad_NC[i*input_grad_sH + j*input_grad_sW + k*input_grad_sD];
     scalar_t *input_NC = input + n*input_sN + c*input_sC;
@@ -187,12 +182,21 @@ inline void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  
     if (sizeD>1){
         shifts[2] = *(weights + c*weights_sC + 2*weights_sS);        
         dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
-    scalar_t* tmp = get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                       j-shifts[1], sizeW, input_sW,
-                                                       k-shifts[2], sizeD, input_sD,
-                                                       0, 0, input_grad_NC, zp, padding_mode);
-    *output_grad_NCHWD = compute_interpolated<scalar_t,idx_t,true>(tmp, dshifts[0], dshifts[1], dshifts[2],
-                                                                   sizeH, sizeW, sizeD, zp);
+    if (active)
+    {
+        scalar_t* tmp = get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                           j-shifts[1], sizeW, input_sW,
+                                                           k-shifts[2], sizeD, input_sD,
+                                                           0, 0, input_grad_NC, zp, padding_mode);
+        *output_grad_NCHWD = compute_interpolated<scalar_t,idx_t,true>(tmp, dshifts[0], dshifts[1], dshifts[2],
+                                                                      sizeH, sizeW, sizeD, zp);
+    } else
+    {                                                              
+        *output_grad_NCHWD = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                               j-shifts[1], sizeW, input_sW,
+                                                               k-shifts[2], sizeD, input_sD,
+                                                               0, 0, input_NC, zero_point, padding_mode);
+    }
     tmp = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                              j+shifts[1], sizeW, input_sW,
                                              k+shifts[2], sizeD, input_sD,
@@ -205,18 +209,15 @@ inline void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  
 }
 
 
-
-
-
-template <typename scalar_t, typename idx_t, bool quantized=false>
+template <typename scalar_t, typename idx_t, bool quantized=false, bool active=false>
 inline void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output, 
                                        idx_t* weights, scalar_t* dweights,
-                                       idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
+                                       idx_t n, idx_t i, idx_t j, idx_t k,
                                        idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
                                        idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
                                        idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
                                        idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
-                                       scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode, bool active_flag){
+                                       scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
     scalar_t *input_N = input + n*input_sN;
     scalar_t *output_NHWD = output + n*output_sN + i*output_sH + j*output_sW + k*output_sD;
     scalar_t val;
@@ -226,44 +227,37 @@ inline void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
         shifts[0] = *(weights+c*weights_sC) - weights_zero_point;
         if (sizeW>1){shifts[1] = *(weights+weights_sS+c*weights_sC) - weights_zero_point;}
         if (sizeD>1){shifts[2] = *(weights+2*weights_sS+c*weights_sC) - weights_zero_point;}
-        if (quantized){
+        if ((quantized)||(!active))
+        {
             val = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                                      j+shifts[1], sizeW, input_sW,
                                                      k+shifts[2], sizeD, input_sD,
                                                      c, input_sC, input_N, zero_point, padding_mode);
-        } else {
-            val = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                                     j+shifts[1], sizeW, input_sW,
-                                                     k+shifts[2], sizeD, input_sD,
-                                                     c, input_sC, input_N, zero_point, padding_mode);
+        } else 
+        {    
+            scalar_t* tmp = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
+                                                               j+shifts[1], sizeW, input_sW,
+                                                               k+shifts[2], sizeD, input_sD,
+                                                               c, input_sC, input_N, zero_point, padding_mode);
 
-            if (active_flag){
-                scalar_t* tmp = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                                                   j+shifts[1], sizeW, input_sW,
-                                                                   k+shifts[2], sizeD, input_sD,
-                                                                   c, input_sC, input_N, zero_point, padding_mode);
-
-                val = compute_interpolated<scalar_t,idx_t,false>(tmp, *(dweights+c*dweights_sC), *(dweights+dweights_sS+c*dweights_sC),
-                                                                 *(dweights+2*dweights_sS+c*dweights_sC),
-                                                                 sizeH, sizeW, sizeD, zero_point);
-            }
+            val = compute_interpolated<scalar_t,idx_t,false>(tmp, *(dweights+c*dweights_sC), *(dweights+dweights_sS+c*dweights_sC),
+                                                             *(dweights+2*dweights_sS+c*dweights_sC),
+                                                             sizeH, sizeW, sizeD, zero_point);
         }
         output_NHWD[c*output_sC] = val;
     }
 }
 
-
-
-template <typename scalar_t, typename idx_t>
+template <typename scalar_t, typename idx_t, bool active=false>
 inline void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
                                        idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
-                                       idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
+                                       idx_t n, idx_t i, idx_t j, idx_t k,
                                        idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
                                        idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
                                        idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
                                        idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
                                        idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
-                                       BIPadding padding_mode, bool active_flag){
+                                       BIPadding padding_mode){
     scalar_t *input_grad_N = input_grad + n*input_grad_sN;
     scalar_t *input_N = input + n*input_sN;
     scalar_t *output_grad_NHWD= output_grad + n*output_grad_sN + i*output_grad_sH + j*output_grad_sW + k*output_grad_sD;         
@@ -283,13 +277,22 @@ inline void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  
             dshifts[1] = *(dweights+dweights_sS+c*dweights_sC);}
         if (sizeD>1){
             shifts[2] =  *(weights+2*weights_sS+c*weights_sC);         
-            dshifts[2] = *(weights+2*weights_sS+c*weights_sC);}
-        tmp = get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                 j-shifts[1], sizeW, input_sW,
-                                                 k-shifts[2], sizeD, input_sD,
-                                                 c, input_grad_sC, input_grad_N, zp, padding_mode);
-        output_grad_NHWD[c*output_grad_sC] = compute_interpolated<scalar_t,idx_t,true>(tmp, dshifts[0], dshifts[1], dshifts[2],
-                                                                                       sizeH, sizeW, sizeD, zp);
+            dshifts[2] = *(dweights+2*dweights_sS+c*dweights_sC);}
+        if (active)
+        {
+            tmp = get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                    j-shifts[1], sizeW, input_sW,
+                                                    k-shifts[2], sizeD, input_sD,
+                                                    c, input_grad_sC, input_grad_N, zp, padding_mode);
+            output_grad_NHWD[c*output_grad_sC] = compute_interpolated<scalar_t,idx_t,true>(tmp, dshifts[0], dshifts[1], dshifts[2],
+                                                                                           sizeH, sizeW, sizeD, zp);
+        } else
+        {
+            output_grad_NHWD[c*output_grad_sC] = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                                                   j-shifts[1], sizeW, input_sW,
+                                                                                   k-shifts[2], sizeD, input_sD,
+                                                                                   c, input_grad_sC, input_grad_N, zp, padding_mode);
+        }
         tmp = get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                                  j+shifts[1], sizeW, input_sW,
                                                  k+shifts[2], sizeD, input_sD,
@@ -303,3 +306,25 @@ inline void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  
     }
 }
 
+
+template <typename in_t, typename out_t, bool q_type=false, bool active=false>
+inline out_t* init_weights(in_t src, const int size)
+{
+    out_t *dst = new out_t[size];
+    for (int i = 0; i < size; ++i) 
+    {
+        dst[i] = static_cast<out_t>(q_type ? (src[i]->val_) : ROUND(src[i],active));
+    }
+    return dst;
+} 
+
+template <typename scalar_t>
+inline scalar_t init_weight_offsets(scalar_t src, const int size)
+{
+    scalar_t *dst = new out_t[size];
+    for (int i = 0; i < size; ++i) 
+    {
+        dst[i] = src[i] - FLOOR(src[i]);
+    }
+    return dst
+}
