@@ -7,7 +7,6 @@ p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
               'windows':'-DAT_PARALLEL_NATIVE_TBB=1',
                None:''}
 
-
 #DO CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STDversion = "c++17"
@@ -17,24 +16,24 @@ p_method='openmp'
 print("We use openmp for parallelization on CPU, look inside setup.py to change it if needed")
 
 modules = [
-    CppExtension('torchshifts.cpu',
+    CppExtension('torchshifts.shifts_cpu',
                  ['src/cpu/shifts_cpu.cpp'],
                  extra_compile_args=[f'-std={STDversion}','-fopenmp',p_opt_dict[p_method]]),
 ]
 
 # If nvcc is available, add the CUDA extension
+print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
+
 if CUDA_HOME:
     modules.append(
-        CUDAExtension('torchshifts.cuda',
+        CUDAExtension('torchshifts.shifts_cuda',
                       ['src/cuda/shifts_cuda.cpp',
-                       'src/cuda/shifts_cuda_kernel.cu'],
-                       extra_compile_args=[f'-std={STDversion}'])
+                       'src/cuda/shifts_cuda_kernel.cu'])
     )
-print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
 
 setup(
     name='torchshifts',
-    version='1.2',
+    version='2.0',
     description='Implementation of Sparse Active Shift https://arxiv.org/pdf/1903.05285.pdf for PyTorch',
     keywords=['shifts','activeshifts', 'shiftspytorch'],
     author='Ignatii Dubyshkin',
