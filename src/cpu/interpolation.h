@@ -40,7 +40,7 @@ inline scalar_t interp3D_dx(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4,
                             scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
                             scalar_t y, scalar_t z)
 {
-    return interp1D(interp2D_dx(v1, v2, v3, v4, y), interp2D(v5, v6, v7, v8, y), z);
+    return interp1D(interp2D_dx(v1, v2, v3, v4, y), interp2D_dx(v5, v6, v7, v8, y), z);
 }
 
 template<typename scalar_t>

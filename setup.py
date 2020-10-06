@@ -8,13 +8,18 @@ p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
                None:''}
 
 
+#DO CHANGE ON EARLIER STANDARDS PLEASE
+#(We use c++17 for using "constexpr" in our code)
+STDversion = "c++17"
+assert int(STDversion.strip('c++')) >= 17, "DO CHANGE ON EARLIER STANDARDS PLEASE"
+
 p_method='openmp'
 print("We use openmp for parallelization on CPU, look inside setup.py to change it if needed")
 
 modules = [
     CppExtension('torchshifts.cpu',
                  ['src/cpu/shifts_cpu.cpp'],
-                 extra_compile_args=['-fopenmp',p_opt_dict[p_method]]),
+                 extra_compile_args=[f'-std={STDversion}','-fopenmp',p_opt_dict[p_method]]),
 ]
 
 # If nvcc is available, add the CUDA extension
@@ -22,7 +27,8 @@ if CUDA_HOME:
     modules.append(
         CUDAExtension('torchshifts.cuda',
                       ['src/cuda/shifts_cuda.cpp',
-                       'src/cuda/shifts_cuda_kernel.cu'])
+                       'src/cuda/shifts_cuda_kernel.cu'],
+                       extra_compile_args=[f'-std={STDversion}'])
     )
 print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
 
