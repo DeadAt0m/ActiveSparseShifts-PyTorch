@@ -27,8 +27,8 @@ __global__ void _shifts_cuda(const int n_threads,
     int input_sN = input.strides[0];
     int input_sC = input.strides[1];
     int input_sH = input.strides[2];
-    int input_sW = kSpatialDim < 2 ? 0 : strides[3];
-    int input_sD = kSpatialDim < 3 ? 0 : strides[4];
+    int input_sW = kSpatialDim < 2 ? 0 : input.strides[3];
+    int input_sD = kSpatialDim < 3 ? 0 : input.strides[4];
     int output_sN = output.strides[0];
     int output_sC = output.strides[1];
     int output_sH = output.strides[2];
