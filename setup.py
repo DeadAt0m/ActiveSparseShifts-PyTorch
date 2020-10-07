@@ -9,7 +9,7 @@ p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
 
 #DO CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
-STDversion = "c++17"
+STDversion = "c++1z"
 # assert int(STDversion.strip('c++')) >= 17, "DO CHANGE ON EARLIER STANDARDS PLEASE"
 
 p_method='openmp'
@@ -27,8 +27,8 @@ print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
 if CUDA_HOME:
     modules.append(
         CUDAExtension('torchshifts.shifts_cuda',
-                      ['src/cuda/shifts_cuda.cpp',
-                       'src/cuda/shifts_cuda_kernel.cu'])
+                      ['src/cuda/shifts_kernels.cu',
+                       'src/cuda/shifts_cuda.cpp'])
     )
 
 setup(
