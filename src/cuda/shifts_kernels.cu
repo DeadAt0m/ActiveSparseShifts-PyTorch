@@ -20,7 +20,6 @@ __global__ void _shifts_cuda(const int n_threads,
                              TensorInfo<scalar_t, int> output,
                              const int weights_size,
                              const BIPadding padding_mode){
-    int sizeN = input.sizes[0];
     int sizeC = input.sizes[1];
     int sizeH = input.sizes[2];
     int sizeW = kSpatialDim < 2 ? 1 : input.sizes[3];
@@ -79,7 +78,6 @@ __global__ void _shifts_backward_cuda(const int n_threads,
                                       const int weights_size,
                                       const BIPadding padding_mode)
 {
-    int sizeN = grad_input.sizes[0];
     int sizeC = grad_input.sizes[1];
     int sizeH = grad_input.sizes[2];
     int sizeW = kSpatialDim < 2 ? 1 : grad_input.sizes[3];
@@ -156,7 +154,7 @@ torch::Tensor shiftnd_cuda(const torch::Tensor& input,
     if (count > 0) {
         if (active_flag){
              AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), name, [&] {
-                _shifts_cuda<scalar_t, nD, false, true>
+                _shifts_cuda<scalar_t, nD, true>
                 <<<GET_BLOCKS(count), CUDA_NUM_THREADS, 0, at::cuda::getCurrentCUDAStream()>>>(
                 count,
                 getTensorInfo<scalar_t, int>(input),
@@ -167,7 +165,7 @@ torch::Tensor shiftnd_cuda(const torch::Tensor& input,
         }
         else {
             AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), name, [&] {
-                _shifts_cuda<scalar_t, nD, false, false>
+                _shifts_cuda<scalar_t, nD, false>
                 <<<GET_BLOCKS(count), CUDA_NUM_THREADS, 0, at::cuda::getCurrentCUDAStream()>>>(
                 count,
                 getTensorInfo<scalar_t, int>(input),
