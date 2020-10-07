@@ -2,12 +2,12 @@
 #define _SHIFTS_CPU
 #include "shifts_kernels.h"
 #include <torch/extension.h>
+#include <torch/script.h>
 
 
 
 
-
-template <typename scalar_t, int32_t kSpatialDim, bool quantized=false, bool active=false>
+template <typename scalar_t, int32_t kSpatialDim, bool quantized, bool active>
 inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
                         torch::Tensor& output, BIPadding padding_mode){
     int64_t sizeN = input.size(0);
@@ -32,21 +32,21 @@ inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights
     int64_t *weights_ptr = init_weights<scalar_t, int64_t, quantized, active>(weights.data_ptr<scalar_t>(), (int)weights.numel());
     int64_t weights_sC = weights.stride(0);
     int64_t weights_sS = weights.stride(1);
-    if constexpr(quantized){
+    STATIC_IF(quantized){
         zero_point = static_cast<scalar_t>(input.q_zero_point());
         weights_zero_point = static_cast<int64_t>(weights.q_zero_point());
-    } else {
+    } STATIC_ELSE {
         zero_point = static_cast<scalar_t>(0);
         weights_zero_point = 0;
-    }
+    } STATIC_ENDIF
     scalar_t *dweights_ptr = NULL;
     int64_t dweights_sC = 0;
     int64_t dweights_sS = 0;
-    if constexpr(active){
+    STATIC_IF(active){
         dweights_ptr = init_weight_offsets<scalar_t>(weights.data_ptr<scalar_t>(), (int)weights.numel());
         dweights_sC = weights_sC;
         dweights_sS = weights_sS;
-    }
+    } STATIC_ENDIF
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d))
     {// Path for NDHWC
         at::parallel_for(0, sizeN*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
@@ -82,11 +82,11 @@ inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights
         });
     }
     delete weights_ptr;
-    if constexpr(active){delete dweights_ptr;}
+    STATIC_IF(active){delete dweights_ptr;} STATIC_ENDIF
 }
 
 
-template <typename scalar_t, int32_t kSpatialDim, bool active=false>
+template <typename scalar_t, int32_t kSpatialDim, bool active>
 inline void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::Tensor& weights,
                                  const torch::Tensor& input, torch::Tensor& grad_output,
                                  torch::Tensor& grad_weights, BIPadding padding_mode)
@@ -123,11 +123,11 @@ inline void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::T
     scalar_t *dweights_ptr = NULL;
     int64_t dweights_sC = 0;
     int64_t dweights_sS = 0;
-    if constexpr(active){
+    STATIC_IF(active){
         dweights_ptr = init_weight_offsets<scalar_t>(weights.data_ptr<scalar_t>(), (int)weights.numel());
         dweights_sC = weights_sC;
         dweights_sS = weights_sS;
-    }
+    } STATIC_ENDIF
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d))
     {// Path for NDHWC
         at::parallel_for(0, sizeN*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
@@ -167,7 +167,7 @@ inline void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::T
         });
     }
     delete weights_ptr;
-    if constexpr(active) {delete dweights_ptr;}
+    STATIC_IF(active){delete dweights_ptr;} STATIC_ENDIF
 }
 
 
@@ -222,8 +222,8 @@ std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
                                                 int padding_mode,
                                                 bool active_flag) {
   std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
-  auto out_grad = torch::zeros_like(grad, grad.options());
-  auto weights_grad = torch::zeros_like(weights, weights.options());
+  torch::Tensor out_grad = torch::zeros_like(grad, grad.options());
+  torch::Tensor weights_grad = torch::zeros_like(weights, weights.options());
   
   if (active_flag){
       AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), name, [&] {
@@ -286,7 +286,14 @@ std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
     return  shiftnd_backward_cpu<3>(grad, weights, input, padding_mode, active_flag);                                       
 }
 
-
+// TORCH_LIBRARY(shifts_cpu, m) {
+//     m.def("shift1d_cpu", &shift1d_cpu);
+//     m.def("shift2d_cpu", &shift2d_cpu);
+//     m.def("shift3d_cpu", &shift3d_cpu);
+//     m.def("shift1d_backward_cpu", &shift1d_backward_cpu);
+//     m.def("shift2d_backward_cpu", &shift2d_backward_cpu);
+//     m.def("shift3d_backward_cpu", &shift3d_backward_cpu); 
+// }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("shift1d_cpu", &shift1d_cpu, "1D Shift operation forward (cpu)");
@@ -298,9 +305,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
 };
 
 
-// TORCH_LIBRARY(srrqops, m) {
-//   m.def("quantized_adaptive_avg2dpool", &quantized_adaptive_avg_pool2d_cpu);
-//   m.def("quantized_adaptive_avg3dpool", &quantized_adaptive_avg_pool3d_cpu);
-// }
+
 
 #endif

@@ -10,7 +10,7 @@ p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
 #DO CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STDversion = "c++17"
-assert int(STDversion.strip('c++')) >= 17, "DO CHANGE ON EARLIER STANDARDS PLEASE"
+# assert int(STDversion.strip('c++')) >= 17, "DO CHANGE ON EARLIER STANDARDS PLEASE"
 
 p_method='openmp'
 print("We use openmp for parallelization on CPU, look inside setup.py to change it if needed")
