@@ -132,7 +132,7 @@ FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
                                       scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
     scalar_t *input_NC = input + n*input_sN + c*input_sC;
     scalar_t *output_NCHWD= output + n*output_sN + c*output_sC + i*output_sH + j*output_sW + k*output_sD;
-    scalar_t val;
+    scalar_t val = zero_point;
     idx_t shifts[3] = {*(weights+c*weights_sC) - weights_zero_point, 0, 0};
     if (sizeW>1){shifts[1] = *(weights+c*weights_sC+weights_sS) - weights_zero_point;}
     if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sC) - weights_zero_point;}
@@ -153,7 +153,7 @@ FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
         scalar_t dshifts[3] = {*(dweights + c*dweights_sC), 0, 0};
         if (sizeW>1){dshifts[1] = *(dweights + c*dweights_sC + dweights_sS);}
         if (sizeD>1){dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
-        compute_interpolated<scalar_t,idx_t,false>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
+        compute_interpolated<scalar_t,idx_t,false>(&_vals_array, dshifts[0], dshifts[1], dshifts[2],
                                                    sizeH, sizeW, sizeD, zero_point, val);
     } STATIC_ENDIF
     *output_NCHWD = val;
@@ -222,7 +222,7 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
                                       scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
     scalar_t *input_N = input + n*input_sN;
     scalar_t *output_NHWD = output + n*output_sN + i*output_sH + j*output_sW + k*output_sD;
-    scalar_t val;
+    scalar_t val = zero_point;
     idx_t shifts[3] = {0, 0, 0};
     scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
                                        zero_point, zero_point, zero_point, zero_point};
