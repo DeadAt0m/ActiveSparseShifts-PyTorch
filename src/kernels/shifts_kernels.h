@@ -73,9 +73,6 @@ FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                           k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values[2]);
         get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
                           k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values[3]);                           
-    } else {
-        output_values[2] = zero_point;
-        output_values[3] = zero_point;
     }
     if (sizeD>1){
         get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
@@ -86,12 +83,7 @@ FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                           k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values[6]);
         get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
                           k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values[7]);
-    } else {
-        output_values[4] = zero_point;
-        output_values[5] = zero_point;
-        output_values[6] = zero_point;
-        output_values[7] = zero_point;  
-    }                                 
+    }                           
 }
 
 template <typename scalar_t, typename idx_t, bool reverse=false>
@@ -108,7 +100,7 @@ FTYPE void compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff
 
 template <typename scalar_t, typename idx_t>
 FTYPE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                    idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t zero_point, scalar_t* output_grad){
+                                    idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t* output_grad){
     if (sizeD>1){
         output_grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
                                    diff_shiftW, diff_shiftD);
@@ -122,13 +114,10 @@ FTYPE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t 
                                    diff_shiftW);
         output_grad[1]=interp2D_dy(v[0], v[1], v[2], v[3], 
                                    diff_shiftH);
-        output_grad[2]=zero_point;
         
     }
     else if (sizeH>1){
         output_grad[0]=interp1D_dx(v[0], v[1]);
-        output_grad[1]=zero_point;
-        output_grad[2]=zero_point;
     }
 }
 
@@ -155,7 +144,8 @@ FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
                                           0, 0, input_NC, zero_point, padding_mode, val);
     } STATIC_ELSE
     {
-        scalar_t _vals_array[8];
+        scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
+                                   zero_point, zero_point, zero_point, zero_point};
         get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                            j+shifts[1], sizeW, input_sW,
                                            k+shifts[2], sizeD, input_sD,
@@ -184,7 +174,7 @@ FTYPE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  s
     scalar_t *input_NC = input + n*input_sN + c*input_sC;
     scalar_t *output_grad_NCHWD= output_grad + n*output_grad_sN + c*output_grad_sC + i*output_grad_sH + j*output_grad_sW + k*output_grad_sD;                                   
     scalar_t zp = static_cast<scalar_t>(0);
-    scalar_t _vals_array[8];
+    scalar_t _vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
     idx_t shifts[3] = {*(weights + c*weights_sC), 0, 0};
     scalar_t dshifts[3] = {*(dweights + c*dweights_sC), zp, zp};
     if (sizeW>1){
@@ -212,9 +202,9 @@ FTYPE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  s
                                        j+shifts[1], sizeW, input_sW,
                                        k+shifts[2], sizeD, input_sD,
                                        0, 0, input_NC, zp, padding_mode, _vals_array);
-    scalar_t _new_weights_grad[3];                                   
+    scalar_t _new_weights_grad[3] = {zp, zp, zp};                                   
     compute_weight_gradients<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                             sizeH, sizeW, sizeD, zp, _new_weights_grad);
+                                             sizeH, sizeW, sizeD, _new_weights_grad);
     ADD((weights_grad + c*weights_grad_sC),(input_grad_NCHWD_val * _new_weights_grad[0]));
     if (sizeW>1){ADD((weights_grad + c*weights_grad_sC + weights_grad_sS),(input_grad_NCHWD_val * _new_weights_grad[1]));}
     if (sizeD>1){ADD((weights_grad + c*weights_grad_sC + 2*weights_grad_sS),(input_grad_NCHWD_val * _new_weights_grad[2]));}
@@ -234,6 +224,8 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
     scalar_t *output_NHWD = output + n*output_sN + i*output_sH + j*output_sW + k*output_sD;
     scalar_t val;
     idx_t shifts[3] = {0, 0, 0};
+    scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
+                                       zero_point, zero_point, zero_point, zero_point};
     for (idx_t c = 0; c < sizeC; c++)
     {
         shifts[0] = *(weights+c*weights_sC) - weights_zero_point;
@@ -247,7 +239,6 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
                                               c, input_sC, input_N, zero_point, padding_mode, val);
         } STATIC_ELSE
         {   
-            scalar_t _vals_array[8];
             get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                                j+shifts[1], sizeW, input_sW,
                                                k+shifts[2], sizeD, input_sD,
@@ -279,8 +270,8 @@ FTYPE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  s
     scalar_t zp = static_cast<scalar_t>(0);
     idx_t shifts[3] = {0, 0, 0};
     scalar_t dshifts[3] = {zp, zp, zp};
-    scalar_t _vals_array[8];
-    scalar_t _new_weights_grad[3];
+    scalar_t _vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
+    scalar_t _new_weights_grad[3] = {zp, zp, zp};
     for (idx_t c = 0; c < sizeC; c++)
     {
         shifts[0] = *(weights + c*weights_sC);
@@ -311,7 +302,7 @@ FTYPE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  s
                                            k+shifts[2], sizeD, input_sD,
                                            c, input_sC, input_N, zp, padding_mode, _vals_array);
         compute_weight_gradients<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                 sizeH, sizeW, sizeD, zp, _new_weights_grad);
+                                                 sizeH, sizeW, sizeD, _new_weights_grad);
         input_grad_NHWDC_val = input_grad_NHWD[c*input_grad_sC];
         ADD((weights_grad + c*weights_grad_sC),(input_grad_NHWDC_val * _new_weights_grad[0]));
         if (sizeW>1){ADD((weights_grad + weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * _new_weights_grad[1]));}
