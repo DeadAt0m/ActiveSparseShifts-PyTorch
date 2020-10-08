@@ -1,7 +1,7 @@
 #ifndef _SHIFTS_CUDA
 #define _SHIFTS_CUDA
 
-#include <torch/extension.h>
+#include "shifts_cuda.h"
 #include <torch/script.h>
 
 #define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")

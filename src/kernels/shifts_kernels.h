@@ -224,10 +224,6 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
     scalar_t *output_NHWD = output + n*output_sN + i*output_sH + j*output_sW + k*output_sD;
     scalar_t val = zero_point;
     idx_t shifts[3] = {0, 0, 0};
-    STATIC_IF(active){
-        scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
-                                zero_point, zero_point, zero_point, zero_point};
-    } STATIC_ENDIF
     for (idx_t c = 0; c < sizeC; c++)
     {
         shifts[0] = *(weights+c*weights_sC) - weights_zero_point;
@@ -241,6 +237,8 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
                                               c, input_sC, input_N, zero_point, padding_mode, val);
         } STATIC_ELSE
         {   
+            scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
+                                zero_point, zero_point, zero_point, zero_point};
             get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                                j+shifts[1], sizeW, input_sW,
                                                k+shifts[2], sizeD, input_sD,

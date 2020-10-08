@@ -1,7 +1,7 @@
 #ifndef _SHIFTS_CUDA_KERNELS
 #define _SHIFTS_CUDA_KERNELS
 
-#include <torch/extension.h>
+#include "shifts_cuda.h"
 #include <THC/THCAtomics.cuh>
 #include <ATen/cuda/detail/IndexUtils.cuh>
 #include <ATen/cuda/detail/KernelUtils.h>
