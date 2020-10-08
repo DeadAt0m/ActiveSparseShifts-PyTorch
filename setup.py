@@ -30,7 +30,7 @@ print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
 if CUDA_HOME:
     modules.append(
         CUDAExtension('torchshifts.shifts_cuda',
-                      ['src/cuda/shifts_cuda.cpp'
+                      ['src/cuda/shifts_cuda.cpp',
                        'src/cuda/shifts_kernels.cu',  
                       ],
                        extra_compile_args=[lib_path])
