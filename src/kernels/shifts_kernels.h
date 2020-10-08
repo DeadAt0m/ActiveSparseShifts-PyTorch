@@ -42,11 +42,11 @@ FTYPE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
 
 template<typename scalar_t, typename idx_t>
 FTYPE void get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
-                                 idx_t j_shifted, idx_t sizeW, idx_t strideW,
-                                 idx_t k_shifted, idx_t sizeD, idx_t strideD,
-                                 idx_t c, idx_t strideC,
-                                 scalar_t* array, scalar_t zero_point, 
-                                 BIPadding padding_mode, scalar_t output_value){
+                             idx_t j_shifted, idx_t sizeW, idx_t strideW,
+                             idx_t k_shifted, idx_t sizeD, idx_t strideD,
+                             idx_t c, idx_t strideC,
+                             scalar_t* array, scalar_t zero_point, 
+                             BIPadding padding_mode, scalar_t output_value){
     output_value = zero_point;
     idx_t tidx_i = 0;
     idx_t tidx_j = 0;
@@ -237,8 +237,9 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
                                               c, input_sC, input_N, zero_point, padding_mode, val);
         } STATIC_ELSE
         {   
+            // define array here to avoid unnessary warnings, Hope the compiler can optimize it itself
             scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
-                                zero_point, zero_point, zero_point, zero_point};
+                                       zero_point, zero_point, zero_point, zero_point};
             get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
                                                j+shifts[1], sizeW, input_sW,
                                                k+shifts[2], sizeD, input_sD,

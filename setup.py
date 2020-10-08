@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDA_HOME
 from torch.utils.cpp_extension import CppExtension, CUDAExtension
 from pathlib import Path
-lib_path = "-I"+str(Path(__file__).resolve() / 'src')
+lib_path = "-I"+str(Path(__file__).parent.resolve() / 'src')
 
 
 p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
@@ -30,8 +30,10 @@ print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
 if CUDA_HOME:
     modules.append(
         CUDAExtension('torchshifts.shifts_cuda',
-                      ['src/cuda/shifts_kernels.cu',
-                       'src/cuda/shifts_cuda.cpp'])
+                      ['src/cuda/shifts_cuda.cpp'
+                       'src/cuda/shifts_kernels.cu',  
+                      ],
+                       extra_compile_args=[lib_path])
     )
 
 setup(
