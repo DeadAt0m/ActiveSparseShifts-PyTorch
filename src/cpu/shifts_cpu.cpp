@@ -289,14 +289,14 @@ std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
     return  shiftnd_backward_cpu<3>(grad, weights, input, padding_mode, active_flag);                                       
 }
 
-// TORCH_LIBRARY(shifts_cpu, m) {
-//     m.def("shift1d_cpu", &shift1d_cpu);
-//     m.def("shift2d_cpu", &shift2d_cpu);
-//     m.def("shift3d_cpu", &shift3d_cpu);
-//     m.def("shift1d_backward_cpu", &shift1d_backward_cpu);
-//     m.def("shift2d_backward_cpu", &shift2d_backward_cpu);
-//     m.def("shift3d_backward_cpu", &shift3d_backward_cpu); 
-// }
+TORCH_LIBRARY(shifts_cpu, m) {
+    m.def("shift1d_cpu", &shift1d_cpu);
+    m.def("shift2d_cpu", &shift2d_cpu);
+    m.def("shift3d_cpu", &shift3d_cpu);
+    m.def("shift1d_backward_cpu", &shift1d_backward_cpu);
+    m.def("shift2d_backward_cpu", &shift2d_backward_cpu);
+    m.def("shift3d_backward_cpu", &shift3d_backward_cpu); 
+}
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("shift1d_cpu", &shift1d_cpu, "1D Shift operation forward (cpu)");

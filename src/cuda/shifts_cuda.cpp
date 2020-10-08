@@ -69,14 +69,14 @@ std::vector<torch::Tensor> shift3d_backward_cuda(const torch::Tensor& grad,
     return  _shift3d_backward_cuda(grad, weights, input, padding_mode, active_flag);                                       
 }
 
-// TORCH_LIBRARY(shifts_cuda, m) {
-//     m.def("shift1d_cuda", &shift1d_cuda);
-//     m.def("shift2d_cuda", &shift2d_cuda);
-//     m.def("shift3d_cuda", &shift3d_cuda);
-//     m.def("shift1d_backward_cuda", &shift1d_backward_cuda);
-//     m.def("shift2d_backward_cuda", &shift2d_backward_cuda);
-//     m.def("shift3d_backward_cuda", &shift3d_backward_cuda); 
-// }
+TORCH_LIBRARY(shifts_cuda, m) {
+    m.def("shift1d_cuda", &shift1d_cuda);
+    m.def("shift2d_cuda", &shift2d_cuda);
+    m.def("shift3d_cuda", &shift3d_cuda);
+    m.def("shift1d_backward_cuda", &shift1d_backward_cuda);
+    m.def("shift2d_backward_cuda", &shift2d_backward_cuda);
+    m.def("shift3d_backward_cuda", &shift3d_backward_cuda); 
+}
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){

@@ -46,15 +46,15 @@ FTYPE void get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                              idx_t k_shifted, idx_t sizeD, idx_t strideD,
                              idx_t c, idx_t strideC,
                              scalar_t* array, scalar_t zero_point, 
-                             BIPadding padding_mode, scalar_t output_value){
-    output_value = zero_point;
+                             BIPadding padding_mode, scalar_t* output_value){
+    *output_value = zero_point;
     idx_t tidx_i = 0;
     idx_t tidx_j = 0;
     idx_t tidx_k = 0;
     tidx_i = infer_index<idx_t>(i_shifted, sizeH, padding_mode);
     tidx_j = infer_index<idx_t>(j_shifted, sizeW, padding_mode);
     tidx_k = infer_index<idx_t>(k_shifted, sizeD, padding_mode); 
-    if ((tidx_i>=0)&&(tidx_j>=0)&&(tidx_k>=0)){ output_value = array[tidx_i*strideH+tidx_j*strideW+tidx_k*strideD+c*strideC];}
+    if ((tidx_i>=0)&&(tidx_j>=0)&&(tidx_k>=0)){ *output_value = array[tidx_i*strideH+tidx_j*strideW+tidx_k*strideD+c*strideC];}
 }
 
 template<typename scalar_t, typename idx_t>
@@ -88,14 +88,14 @@ FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
 
 template <typename scalar_t, typename idx_t, bool reverse=false>
 FTYPE void compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t zero_point, scalar_t output_val){
+                                idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t zero_point, scalar_t* output_val){
     scalar_t rcoeff = static_cast<scalar_t>((reverse)?-1:1);
-    output_val = zero_point;
-    if (sizeD>1){output_val=interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+    *output_val = zero_point;
+    if (sizeD>1){*output_val=interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
                                      rcoeff*diff_shiftH, rcoeff*diff_shiftW, rcoeff*diff_shiftD);}
-    else if (sizeW>1){output_val=interp2D(v[0], v[1], v[2], v[3], 
+    else if (sizeW>1){*output_val=interp2D(v[0], v[1], v[2], v[3], 
                                           rcoeff*diff_shiftH, rcoeff*diff_shiftW);}
-    else {output_val=interp1D(v[0], v[1], rcoeff*diff_shiftH);}
+    else {*output_val=interp1D(v[0], v[1], rcoeff*diff_shiftH);}
 }
 
 template <typename scalar_t, typename idx_t>
