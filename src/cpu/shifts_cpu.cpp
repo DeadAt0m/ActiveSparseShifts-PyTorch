@@ -1,15 +1,16 @@
 #ifndef _SHIFTS_CPU
 #define _SHIFTS_CPU
-#include "shifts_kernels.h"
+
 #include <torch/extension.h>
 #include <torch/script.h>
+#include "kernels/shifts_kernels.h"
 
 
 
 
 template <typename scalar_t, int32_t kSpatialDim, bool quantized, bool active>
-inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
-                        torch::Tensor& output, BIPadding padding_mode){
+FTYPE void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
+                       torch::Tensor& output, BIPadding padding_mode){
     int64_t sizeN = input.size(0);
     int64_t sizeC = input.size(1);
     int64_t sizeH = input.size(2);
@@ -29,7 +30,8 @@ inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights
     scalar_t zero_point;
     int64_t weights_zero_point;
     scalar_t *output_ptr = output.data_ptr<scalar_t>();
-    int64_t *weights_ptr = init_weights<scalar_t, int64_t, quantized, active>(weights.data_ptr<scalar_t>(), (int)weights.numel());
+    int64_t *weights_ptr = NULL;
+    init_weights<scalar_t, int64_t, quantized, active>(weights.data_ptr<scalar_t>(), weights_ptr, (int)weights.numel());
     int64_t weights_sC = weights.stride(0);
     int64_t weights_sS = weights.stride(1);
     STATIC_IF(quantized){
@@ -43,7 +45,7 @@ inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights
     int64_t dweights_sC = 0;
     int64_t dweights_sS = 0;
     STATIC_IF(active){
-        dweights_ptr = init_weight_offsets<scalar_t>(weights.data_ptr<scalar_t>(), (int)weights.numel());
+        init_weight_offsets<scalar_t>(weights.data_ptr<scalar_t>(), dweights_ptr, (int)weights.numel());
         dweights_sC = weights_sC;
         dweights_sS = weights_sS;
     } STATIC_ENDIF
@@ -87,9 +89,9 @@ inline void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights
 
 
 template <typename scalar_t, int32_t kSpatialDim, bool active>
-inline void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::Tensor& weights,
-                                 const torch::Tensor& input, torch::Tensor& grad_output,
-                                 torch::Tensor& grad_weights, BIPadding padding_mode)
+FTYPE void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::Tensor& weights,
+                                const torch::Tensor& input, torch::Tensor& grad_output,
+                                torch::Tensor& grad_weights, BIPadding padding_mode)
 {
     int64_t sizeN = grad_input.size(0);
     int64_t sizeC = grad_input.size(1);
@@ -118,13 +120,14 @@ inline void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::T
     scalar_t *grad_input_ptr = grad_input.data_ptr<scalar_t>();
     scalar_t *input_ptr = input.data_ptr<scalar_t>();
     scalar_t *grad_output_ptr = grad_output.data_ptr<scalar_t>();
-    int64_t *weights_ptr = init_weights<scalar_t, int64_t, false, active>(weights.data_ptr<scalar_t>(), (int)weights.numel());
+    int64_t *weights_ptr = NULL;
+    init_weights<scalar_t, int64_t, false, active>(weights.data_ptr<scalar_t>(), weights_ptr, (int)weights.numel());
     scalar_t *grad_weights_ptr = grad_weights.data_ptr<scalar_t>();
     scalar_t *dweights_ptr = NULL;
     int64_t dweights_sC = 0;
     int64_t dweights_sS = 0;
     STATIC_IF(active){
-        dweights_ptr = init_weight_offsets<scalar_t>(weights.data_ptr<scalar_t>(), (int)weights.numel());
+        init_weight_offsets<scalar_t>(weights.data_ptr<scalar_t>(), dweights_ptr, (int)weights.numel());
         dweights_sC = weights_sC;
         dweights_sS = weights_sS;
     } STATIC_ENDIF

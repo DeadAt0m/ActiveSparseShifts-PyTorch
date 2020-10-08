@@ -1,6 +1,9 @@
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDA_HOME
 from torch.utils.cpp_extension import CppExtension, CUDAExtension
+from pathlib import Path
+lib_path = "-I"+str(Path(__file__).resolve() / 'src')
+
 
 p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
               'openmp':'-DAT_PARALLEL_OPENMP=1',
@@ -9,7 +12,7 @@ p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
 
 #DO CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
-STDversion = "c++1z"
+STDversion = "c++17"
 # assert int(STDversion.strip('c++')) >= 17, "DO CHANGE ON EARLIER STANDARDS PLEASE"
 
 p_method='openmp'
@@ -18,7 +21,7 @@ print("We use openmp for parallelization on CPU, look inside setup.py to change 
 modules = [
     CppExtension('torchshifts.shifts_cpu',
                  ['src/cpu/shifts_cpu.cpp'],
-                 extra_compile_args=[f'-std={STDversion}','-fopenmp',p_opt_dict[p_method]]),
+                 extra_compile_args=[f'-std={STDversion}','-fopenmp',p_opt_dict[p_method], lib_path]),
 ]
 
 # If nvcc is available, add the CUDA extension

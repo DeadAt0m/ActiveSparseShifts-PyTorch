@@ -10,7 +10,7 @@
 using namespace at::cuda::detail;
 
 namespace {
-#include "shifts_kernels.cuh" 
+#include "kernels/shifts_kernels.h"
 
 template <typename scalar_t, int kSpatialDim, bool active>
 C10_LAUNCH_BOUNDS_1(1024)
@@ -38,14 +38,15 @@ __global__ void _shifts_cuda(const int n_threads,
     scalar_t zero_point = static_cast<scalar_t>(0);
     int weights_zero_point = 0;
     scalar_t *output_ptr = output.data;
-    int *weights_ptr = init_weights<scalar_t, int, false, active>(weights.data, weights_size);
+    int *weights_ptr = NULL;
+    init_weights<scalar_t, int, false, active>(weights.data, weights_ptr, weights_size);
     int weights_sC = weights.strides[0];
     int weights_sS = weights.strides[1];
     scalar_t *dweights_ptr = NULL;
     int dweights_sC = 0;
     int dweights_sS = 0;
     STATIC_IF(active){
-        dweights_ptr = init_weight_offsets<scalar_t>(weights.data, weights_size);
+        init_weight_offsets<scalar_t>(weights.data, dweights_ptr, weights_size);
         dweights_sC = weights_sC;
         dweights_sS = weights_sS;
     } STATIC_ENDIF
@@ -104,13 +105,14 @@ __global__ void _shifts_backward_cuda(const int n_threads,
     scalar_t *grad_input_ptr = grad_input.data;
     scalar_t *input_ptr = input.data;
     scalar_t *grad_output_ptr = grad_output.data;
-    int *weights_ptr = init_weights<scalar_t, int, false, active>(weights.data, weights_size);
+    int *weights_ptr = NULL;
+    init_weights<scalar_t, int, false, active>(weights.data, weights_ptr, weights_size);
     scalar_t *grad_weights_ptr = grad_weights.data;
     scalar_t *dweights_ptr = NULL;
     int dweights_sC = 0;
     int dweights_sS = 0;
     STATIC_IF(active){
-        dweights_ptr = init_weight_offsets<scalar_t>(weights.data, weights_size);
+        init_weight_offsets<scalar_t>(weights.data, dweights_ptr, weights_size);
         dweights_sC = weights_sC;
         dweights_sS = weights_sS;
     } STATIC_ENDIF
