@@ -180,43 +180,48 @@ torch::Tensor shiftnd_cpu(const torch::Tensor& input,
                           int padding_mode,
                           bool active_flag){
     std::string name = "shift"+std::to_string(nD)+"d_cpu";
-    torch::Tensor output;
-    bool is_quantized = input.is_quantized();
-    if (is_quantized){
-        if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
-            output = at::_empty_affine_quantized(input.sizes(), input.options().memory_format(input.suggest_memory_format()),
-                                                 input.q_scale(), input.q_zero_point(), c10::nullopt);
-        }
-        else
-        {
-            output = at::_empty_affine_quantized(input.sizes(), input.options(), input.q_scale(), input.q_zero_point());
-        }
-    }
-    else {
-        output = torch::zeros_like(input, input.options());
-    }
-    if (is_quantized){ 
-        AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-            _shifts_cpu<scalar_t, nD, true, false>(input, weights, output,
-                                                   static_cast<BIPadding>(padding_mode));
-        }); 
-    }
-    else {
-        if (active_flag){
+    torch::Tensor output = torch::zeros_like(input, input.options());
+
+    if (active_flag){
             AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
                 _shifts_cpu<scalar_t, nD, false, true>(input, weights, output,
                                                        static_cast<BIPadding>(padding_mode));
             });   
-        }
-        else {
+    }
+   else {
              AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
                 _shifts_cpu<scalar_t, nD, false, false>(input, weights, output,
                                                         static_cast<BIPadding>(padding_mode));
             }); 
-        }
     }
     return output;
 }
+
+
+template <int nD>
+torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
+                          const torch::Tensor& weights,
+                          int padding_mode,
+                          bool active_flag){
+    std::string name = "shift"+std::to_string(nD)+"d_cpu";
+    torch::Tensor output;
+    if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
+        output = at::_empty_affine_quantized(input.sizes(), input.options().memory_format(input.suggest_memory_format()),
+                                             input.q_scale(), input.q_zero_point(), c10::nullopt);
+    }
+    else {
+        output = at::_empty_affine_quantized(input.sizes(), input.options(), input.q_scale(), input.q_zero_point());
+    }
+
+    AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
+            _shifts_cpu<scalar_t, nD, true, false>(input, weights, output,
+                                                   static_cast<BIPadding>(padding_mode));
+        }); 
+    
+    
+    return output;
+}
+
 
 template <int nD>
 std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
@@ -289,10 +294,35 @@ std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
     return  shiftnd_backward_cpu<3>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                       
 }
 
+torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
+                            const torch::Tensor& weights,
+                            int64_t padding_mode,
+                            bool active_flag){
+    return q_shiftnd_cpu<1>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+}
+
+torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
+                            const torch::Tensor& weights,
+                            int64_t padding_mode,
+                            bool active_flag){
+    return q_shiftnd_cpu<2>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+}
+
+torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
+                            const torch::Tensor& weights,
+                            int64_t padding_mode,
+                            bool active_flag){
+    return q_shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+}
+
+
 TORCH_LIBRARY(shifts_cpu, m) {
     m.def("shift1d_cpu", &shift1d_cpu);
     m.def("shift2d_cpu", &shift2d_cpu);
     m.def("shift3d_cpu", &shift3d_cpu);
+    m.def("q_shift1d_cpu", &q_shift1d_cpu);
+    m.def("q_shift2d_cpu", &q_shift2d_cpu);
+    m.def("q_shift3d_cpu", &q_shift3d_cpu);
     m.def("shift1d_backward_cpu", &shift1d_backward_cpu);
     m.def("shift2d_backward_cpu", &shift2d_backward_cpu);
     m.def("shift3d_backward_cpu", &shift3d_backward_cpu); 
@@ -302,6 +332,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
     m.def("shift1d_cpu", &shift1d_cpu, "1D Shift operation forward (cpu)");
     m.def("shift2d_cpu", &shift2d_cpu, "2D Shift operation forward (cpu)");
     m.def("shift3d_cpu", &shift3d_cpu, "3D Shift operation forward (cpu)");
+    m.def("q_shift1d_cpu", &q_shift1d_cpu, "Quantized(PyTorch) 1D Shift operation forward (cpu)");
+    m.def("q_shift2d_cpu", &q_shift2d_cpu, "Quantized(PyTorch) 2D Shift operation forward (cpu)");
+    m.def("q_shift3d_cpu", &q_shift3d_cpu, "Quantized(PyTorch) 3D Shift operation forward (cpu)");
     m.def("shift1d_backward_cpu", &shift1d_backward_cpu, "1D Shift operator backward (cpu)");
     m.def("shift2d_backward_cpu", &shift2d_backward_cpu, "2D Shift operator backward (cpu)");
     m.def("shift3d_backward_cpu", &shift3d_backward_cpu, "3D Shift operator backward (cpu)");
