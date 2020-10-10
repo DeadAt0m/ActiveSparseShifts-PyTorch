@@ -201,8 +201,7 @@ torch::Tensor shiftnd_cpu(const torch::Tensor& input,
 template <int nD>
 torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
                           const torch::Tensor& weights,
-                          int padding_mode,
-                          bool active_flag){
+                          int padding_mode){
     std::string name = "shift"+std::to_string(nD)+"d_cpu";
     torch::Tensor output;
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
@@ -296,23 +295,20 @@ std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
 
 torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
-                            int64_t padding_mode,
-                            bool active_flag){
-    return q_shiftnd_cpu<1>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+                            int64_t padding_mode){
+    return q_shiftnd_cpu<1>(input, weights, static_cast<int>(padding_mode));                    
 }
 
 torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
-                            int64_t padding_mode,
-                            bool active_flag){
-    return q_shiftnd_cpu<2>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+                            int64_t padding_mode){
+    return q_shiftnd_cpu<2>(input, weights, static_cast<int>(padding_mode));                    
 }
 
 torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
-                            int64_t padding_mode,
-                            bool active_flag){
-    return q_shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+                            int64_t padding_mode){
+    return q_shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode));                    
 }
 
 
