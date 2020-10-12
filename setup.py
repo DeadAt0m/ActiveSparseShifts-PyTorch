@@ -47,5 +47,5 @@ setup(
     package_dir={"": "src"},
     ext_modules=modules,
     cmdclass={
-        'build_ext': BuildExtension
+        'build_ext': BuildExtension.with_options(no_python_abi_suffix=True)
     })

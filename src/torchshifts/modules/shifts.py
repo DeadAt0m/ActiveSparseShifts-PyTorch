@@ -19,30 +19,30 @@ class _Shiftnd(nn.Module):
                  init_stride = 1,
                  sparsity_term=5e-4,
                  active_flag=False):
-        super(_ShiftnD, self).__init__()
-        assert padding.lower() in self.padding_dict.keys(), f'incorrect padding option: {padding}'
-        self.padding = self.padding_dict[padding]
+        super(_Shiftnd, self).__init__()
+        assert padding.lower() in paddings_dict.keys(), f'incorrect padding option: {padding}'
+        self.padding = paddings_dict[padding]
         self.sparsity_term = sparsity_term
         self.in_channels = in_channels
-        self.__init_weights(self.in_channels, init_stride)
+        self._init_weights(init_stride)
         self.__active_flag = active_flag
         self.__shift_func = self._init_shift_fn()
 
     def _init_shift_fn(self):
         raise NotImplemented
         
-    def __init_weights(self, in_channels, init_stride):
-        self.weight = nn.Parameter(torch.Tensor((in_channels, self.dim)))
+    def _init_weights(self, init_stride):
+        self.weight = nn.Parameter(torch.Tensor(self.in_channels, self.dim))
         self.reset_parameters(init_stride)
 
     def reset_parameters(self, init_stride):
         self.weight.data.uniform_(-abs(init_stride), abs(init_stride))
     
-    def __compute_weight_loss(self):
+    def _compute_weight_loss(self):
         return self.sparsity_term * torch.sum(torch.abs(self.weight))
                 
     def forward(self, input):
-        loss = self.__compute_weight_loss() if bool(self.sparsity_term) else None
+        loss = self._compute_weight_loss() if bool(self.sparsity_term) else None
         return self.__shift_func.apply(input, self.weight, self.padding, self.__active_flag), loss
     
     def extra_repr(self):
@@ -75,7 +75,7 @@ class Shift1d(_Shiftnd):
     def __init__(self, in_channels, padding='zeros',
                  init_stride = 1, sparsity_term=5e-4, active_flag=False):
         self.dim = 1
-        super(Shift1D, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
+        super(Shift1d, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
     
     def _init_shift_fn(self):
         return shift1d_func
@@ -102,7 +102,7 @@ class Shift2d(_Shiftnd):
     def __init__(self, in_channels, padding='zeros',
                  init_stride = 1, sparsity_term=5e-4, active_flag=False):
         self.dim = 2
-        super(Shift2D, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
+        super(Shift2d, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
     
     def _init_shift_fn(self):
         return shift2d_func
@@ -130,7 +130,7 @@ class Shift3d(_Shiftnd):
     def __init__(self, in_channels, padding='zeros',
                  init_stride = 1, sparsity_term=5e-4, active_flag=False):
         self.dim = 3
-        super(Shift3D, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
+        super(Shift3d, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
     
     def _init_shift_fn(self):
         return shift3d_func
