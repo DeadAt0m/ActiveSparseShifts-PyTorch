@@ -1,1 +1,1 @@
-from shifts import *
+from .shifts import *

@@ -30,7 +30,7 @@ FTYPE void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
     scalar_t zero_point;
     int64_t weights_zero_point;
     scalar_t *output_ptr = output.data_ptr<scalar_t>();
-    int64_t *weights_ptr = NULL;
+    int64_t *weights_ptr = nullptr;
     init_weights<scalar_t, int64_t, quantized, active>(weights.data_ptr<scalar_t>(), weights_ptr, (int)weights.numel());
     int64_t weights_sC = weights.stride(0);
     int64_t weights_sS = weights.stride(1);
@@ -41,7 +41,7 @@ FTYPE void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
         zero_point = static_cast<scalar_t>(0);
         weights_zero_point = 0;
     } STATIC_ENDIF
-    scalar_t *dweights_ptr = NULL;
+    scalar_t *dweights_ptr = nullptr;
     int64_t dweights_sC = 0;
     int64_t dweights_sS = 0;
     STATIC_IF(active){

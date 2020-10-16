@@ -11,8 +11,6 @@ FTYPE T mod(T a, T b){return (b + (a % b)) % b;}
 
 template<typename idx_t>
 FTYPE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
-    if (len == 1){return 0;}
-    //     (len == 1) is used just for bypassing, in case when tensor dimension are not available 
     if ((index < len) && (index >= 0)) {return index;};
     idx_t out_index = index;
     bool odd_seq;
@@ -27,7 +25,8 @@ FTYPE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
             out_index = mod<idx_t>(out_index, len);
             break;
         case BIPadding::Reflect:
-            odd_seq = ((idx_t)(out_index<0) + (ABS(out_index)-(idx_t)(out_index<0))/ (len - 1)) & 1;
+            if (len == 1) {return 0;}
+            odd_seq = ((idx_t)(out_index<0) + (ABS(out_index)-(idx_t)(out_index<0))/ (len-1)) & 1;
             out_index = mod<idx_t>(out_index, len - 1);
             if (odd_seq){out_index = len - 1 - out_index;}
             break;
@@ -41,20 +40,23 @@ FTYPE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
 }
 
 template<typename scalar_t, typename idx_t>
-FTYPE void get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
-                             idx_t j_shifted, idx_t sizeW, idx_t strideW,
-                             idx_t k_shifted, idx_t sizeD, idx_t strideD,
-                             idx_t c, idx_t strideC,
-                             scalar_t* array, scalar_t zero_point, 
-                             BIPadding padding_mode, scalar_t* output_value){
-    *output_value = zero_point;
+FTYPE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
+                                 idx_t j_shifted, idx_t sizeW, idx_t strideW,
+                                 idx_t k_shifted, idx_t sizeD, idx_t strideD,
+                                 idx_t c, idx_t strideC,
+                                 scalar_t* array, scalar_t zero_point, 
+                                 BIPadding padding_mode){
+    scalar_t output_value = zero_point;
     idx_t tidx_i = -1;
     idx_t tidx_j = -1;
     idx_t tidx_k = -1;
     tidx_i = infer_index<idx_t>(i_shifted, sizeH, padding_mode);
     tidx_j = infer_index<idx_t>(j_shifted, sizeW, padding_mode);
-    tidx_k = infer_index<idx_t>(k_shifted, sizeD, padding_mode); 
-    if ((tidx_i>=0)&&(tidx_j>=0)&&(tidx_k>=0)){ *output_value = array[tidx_i*strideH+tidx_j*strideW+tidx_k*strideD+c*strideC];}
+    tidx_k = infer_index<idx_t>(k_shifted, sizeD, padding_mode);
+    if ((tidx_i>=0)&&(tidx_j>=0)&&(tidx_k>=0)){
+        output_value = array[tidx_i * strideH + tidx_j * strideW + tidx_k * strideD + c * strideC];
+    }
+    return output_value;
 }
 
 template<typename scalar_t, typename idx_t>
@@ -64,37 +66,37 @@ FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                               idx_t c, idx_t strideC,
                               scalar_t* array, scalar_t zero_point, 
                               BIPadding padding_mode, scalar_t* output_values){
-    get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
-                      k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values);
-    get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
-                      k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+1);
+    output_values[0] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
+                                         k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
+    output_values[1] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
+                                          k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
     if (sizeW>1){
-        get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                          k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+2);
-        get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                          k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+3);                           
+        output_values[2] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                              k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
+        output_values[3] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                              k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);                           
     }
     if (sizeD>1){
-        get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
-                          k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+4);
-        get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
-                          k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+5);
-        get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                          k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+6);
-        get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                          k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode, output_values+7);
+        output_values[4] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
+                                              k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
+        output_values[5] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
+                                              k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
+        output_values[6] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                              k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
+        output_values[7] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                              k_shifted+1, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
     }                           
 }
 
 template <typename scalar_t, typename idx_t, bool reverse=false>
-FTYPE void compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t* output_val){
+FTYPE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
+                                    idx_t sizeH, idx_t sizeW, idx_t sizeD){
     scalar_t rcoeff = static_cast<scalar_t>((reverse)?-1:1);
-    if (sizeD>1){*output_val=interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                     rcoeff*diff_shiftH, rcoeff*diff_shiftW, rcoeff*diff_shiftD);}
-    else if (sizeW>1){*output_val=interp2D(v[0], v[1], v[2], v[3], 
-                                          rcoeff*diff_shiftH, rcoeff*diff_shiftW);}
-    else {*output_val=interp1D(v[0], v[1], rcoeff*diff_shiftH);}
+    if (sizeD>1){return interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                 rcoeff*diff_shiftH, rcoeff*diff_shiftW, rcoeff*diff_shiftD);}
+    else if (sizeW>1){return interp2D(v[0], v[1], v[2], v[3], 
+                                      rcoeff*diff_shiftH, rcoeff*diff_shiftW);}
+    else {return interp1D(v[0], v[1], rcoeff*diff_shiftH);}
 }
 
 template <typename scalar_t, typename idx_t>
@@ -136,24 +138,24 @@ FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
     if (sizeW>1){shifts[1] = *(weights+c*weights_sC+weights_sS) - weights_zero_point;}
     if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sC) - weights_zero_point;}
     STATIC_IF((quantized)||(!active))
-    {
-        get_shifted_value<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                          j+shifts[1], sizeW, input_sW,
-                                          k+shifts[2], sizeD, input_sD,
-                                          0, 0, input_NC, zero_point, padding_mode, &val);
+    {    
+        val = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                j-shifts[1], sizeW, input_sW,
+                                                k-shifts[2], sizeD, input_sD,
+                                                0, 0, input_NC, zero_point, padding_mode);
     } STATIC_ELSE
     {
         scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
                                    zero_point, zero_point, zero_point, zero_point};
-        get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                           j+shifts[1], sizeW, input_sW,
-                                           k+shifts[2], sizeD, input_sD,
+        get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                           j-shifts[1], sizeW, input_sW,
+                                           k-shifts[2], sizeD, input_sD,
                                            0, 0, input_NC, zero_point, padding_mode, _vals_array);
         scalar_t dshifts[3] = {*(dweights + c*dweights_sC), 0, 0};
         if (sizeW>1){dshifts[1] = *(dweights + c*dweights_sC + dweights_sS);}
         if (sizeD>1){dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
-        compute_interpolated<scalar_t,idx_t,false>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                   sizeH, sizeW, sizeD, &val);
+        val = compute_interpolated<scalar_t,idx_t,false>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
+                                                         sizeH, sizeW, sizeD);
     } STATIC_ENDIF
     *output_NCHWD = val;
 }
@@ -184,22 +186,22 @@ FTYPE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  s
         dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
     STATIC_IF(active)
     {
-        get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                           j-shifts[1], sizeW, input_sW,
-                                           k-shifts[2], sizeD, input_sD,
+        get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
+                                           j+shifts[1], sizeW, input_sW,
+                                           k+shifts[2], sizeD, input_sD,
                                            0, 0, input_grad_NC, zp, padding_mode, _vals_array);
-        compute_interpolated<scalar_t,idx_t, true>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                   sizeH, sizeW, sizeD, output_grad_NCHWD);
+         *output_grad_NCHWD = compute_interpolated<scalar_t,idx_t, true>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
+                                                                         sizeH, sizeW, sizeD);
     } STATIC_ELSE
     {                                                              
-        get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                          j-shifts[1], sizeW, input_sW,
-                                          k-shifts[2], sizeD, input_sD,
-                                          0, 0, input_grad_NC, zp, padding_mode, output_grad_NCHWD);
+        *output_grad_NCHWD = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                               j-shifts[1], sizeW, input_sW,
+                                                               k-shifts[2], sizeD, input_sD,
+                                                               0, 0, input_grad_NC, zp, padding_mode);
     } STATIC_ENDIF
-    get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                       j+shifts[1], sizeW, input_sW,
-                                       k+shifts[2], sizeD, input_sD,
+    get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                       j-shifts[1], sizeW, input_sW,
+                                       k-shifts[2], sizeD, input_sD,
                                        0, 0, input_NC, zp, padding_mode, _vals_array);
     scalar_t _new_weights_grad[3] = {zp, zp, zp};                                   
     compute_weight_gradients<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
@@ -230,23 +232,23 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
         if (sizeD>1){shifts[2] = *(weights+2*weights_sS+c*weights_sC) - weights_zero_point;}
         STATIC_IF((quantized)||(!active))
         {
-            get_shifted_value<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                              j+shifts[1], sizeW, input_sW,
-                                              k+shifts[2], sizeD, input_sD,
-                                              c, input_sC, input_N, zero_point, padding_mode, &val);
+            val = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                    j-shifts[1], sizeW, input_sW,
+                                                    k-shifts[2], sizeD, input_sD,
+                                                    c, input_sC, input_N, zero_point, padding_mode);
         } STATIC_ELSE
         {   
             // define array here to avoid unnessary warnings, Hope the compiler can optimize it itself
             scalar_t _vals_array[8] = {zero_point, zero_point, zero_point, zero_point,
                                        zero_point, zero_point, zero_point, zero_point};
-            get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                               j+shifts[1], sizeW, input_sW,
-                                               k+shifts[2], sizeD, input_sD,
+            get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                               j-shifts[1], sizeW, input_sW,
+                                               k-shifts[2], sizeD, input_sD,
                                                c, input_sC, input_N, zero_point, padding_mode, _vals_array);
 
-            compute_interpolated<scalar_t,idx_t,false>(_vals_array, *(dweights+c*dweights_sC), *(dweights+dweights_sS+c*dweights_sC),
-                                                       *(dweights+2*dweights_sS+c*dweights_sC),
-                                                       sizeH, sizeW, sizeD, &val);
+            val = compute_interpolated<scalar_t,idx_t,false>(_vals_array, *(dweights+c*dweights_sC), *(dweights+dweights_sS+c*dweights_sC),
+                                                             *(dweights+2*dweights_sS+c*dweights_sC),
+                                                             sizeH, sizeW, sizeD);
         } STATIC_ENDIF
         output_NHWD[c*output_sC] = val;
     }
@@ -284,22 +286,22 @@ FTYPE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  s
             dshifts[2] = *(dweights+2*dweights_sS+c*dweights_sC);}
         STATIC_IF(active)
         {
-            get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                               j-shifts[1], sizeW, input_sW,
-                                               k-shifts[2], sizeD, input_sD,
+            get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
+                                               j+shifts[1], sizeW, input_sW,
+                                               k+shifts[2], sizeD, input_sD,
                                                c, input_grad_sC, input_grad_N, zp, padding_mode, _vals_array);
-            compute_interpolated<scalar_t,idx_t,true>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                      sizeH, sizeW, sizeD, output_grad_NHWD+c*output_grad_sC);
+            *(output_grad_NHWD+c*output_grad_sC) = compute_interpolated<scalar_t,idx_t,true>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
+                                                                                              sizeH, sizeW, sizeD);
         } STATIC_ELSE
         {
-            get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                              j-shifts[1], sizeW, input_sW,
-                                              k-shifts[2], sizeD, input_sD,
-                                              c, input_grad_sC, input_grad_N, zp, padding_mode, output_grad_NHWD+c*output_grad_sC);
+            *(output_grad_NHWD+c*output_grad_sC) =  get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                                                                      j-shifts[1], sizeW, input_sW,
+                                                                                      k-shifts[2], sizeD, input_sD,
+                                                                                      c, input_grad_sC, input_grad_N, zp, padding_mode);
         } STATIC_ENDIF
-        get_shifted_values<scalar_t,idx_t>(i+shifts[0], sizeH, input_sH,
-                                           j+shifts[1], sizeW, input_sW,
-                                           k+shifts[2], sizeD, input_sD,
+        get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
+                                           j-shifts[1], sizeW, input_sW,
+                                           k-shifts[2], sizeD, input_sD,
                                            c, input_sC, input_N, zp, padding_mode, _vals_array);
         compute_weight_gradients<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
                                                  sizeH, sizeW, sizeD, _new_weights_grad);
@@ -312,7 +314,7 @@ FTYPE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  s
 
 
 template <typename in_t, typename out_t, bool q_type, bool active>
-FTYPE void init_weights(in_t* src, out_t* dst, const int size)
+FTYPE void init_weights(in_t* src, out_t*& dst, const int size)
 {
     dst = new out_t[size];
     for (int i = 0; i < size; ++i) 
@@ -330,7 +332,7 @@ FTYPE void init_weights(in_t* src, out_t* dst, const int size)
 
 
 template <typename scalar_t>
-FTYPE void init_weight_offsets(scalar_t* src, scalar_t* dst, const int size)
+FTYPE void init_weight_offsets(scalar_t* src, scalar_t*& dst, const int size)
 {
     dst = new scalar_t[size];
     for (int i = 0; i < size; ++i) 

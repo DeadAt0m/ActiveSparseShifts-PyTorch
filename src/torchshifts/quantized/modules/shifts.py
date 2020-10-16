@@ -4,6 +4,9 @@ import copy
 import torchshifts.modules.shifts as shifts
 from torchshifts.quantized.functional import shift1d_quantized, shift2d_quantized, shift3d_quantized
 
+
+rp_dict = {v: k for k, v in shifts.paddings_dict.items()}
+
 def quantize_shift_weights(weight):
     scale = math.ceil((weight.max().item() - weight.min().item()) / 255.)
     return torch.quantize_per_tensor(weight, scale, 128, torch.quint8)
@@ -21,9 +24,9 @@ class Shift1d(shifts.Shift1d):
 
     @staticmethod
     def from_float(mod):
-        qshift = Shift1D(mod.in_channels, shifts.padding_dict[mod.padding])
+        qshift = Shift1d(mod.in_channels, rp_dict[mod.padding])
         qshift.weight = mod.weight
-        qshift.qweight = quantize_shifts_weights(mod.weight.float())
+        qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
 
 
@@ -40,9 +43,9 @@ class Shift2d(shifts.Shift2d):
 
     @staticmethod
     def from_float(mod):
-        qshift = Shift2d(mod.in_channels, shifts.padding_dict[mod.padding])
+        qshift = Shift2d(mod.in_channels, rp_dict[mod.padding])
         qshift.weight = mod.weight
-        qshift.qweight = quantize_shifts_weights(mod.weight.float())
+        qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
     
 class Shift3d(shifts.Shift3d):
@@ -58,9 +61,9 @@ class Shift3d(shifts.Shift3d):
 
     @staticmethod
     def from_float(mod):
-        qshift = Shift3d(mod.in_channels, shifts.padding_dict[mod.padding])
+        qshift = Shift3d(mod.in_channels, rp_dict[mod.padding])
         qshift.weight = mod.weight
-        qshift.qweight = quantize_shifts_weights(mod.weight.float())
+        qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
     
 
