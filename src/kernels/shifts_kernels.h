@@ -136,7 +136,7 @@ FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
     scalar_t val = zero_point;
     idx_t shifts[3] = {*(weights+c*weights_sC) - weights_zero_point, 0, 0};
     if (sizeW>1){shifts[1] = *(weights+c*weights_sC+weights_sS) - weights_zero_point;}
-    if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sC) - weights_zero_point;}
+    if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sS) - weights_zero_point;}
     STATIC_IF((quantized)||(!active))
     {    
         val = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,

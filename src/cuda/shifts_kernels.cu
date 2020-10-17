@@ -149,9 +149,11 @@ torch::Tensor shiftnd_cuda(const torch::Tensor& input,
     int64_t N = input.size(0);
     int64_t C = input.size(1);
     int64_t H = input.size(2);
+    int64_t W = (nD<2)?1:input.size(3);
+    int64_t D = (nD<3)?1:input.size(4);
     
     int weights_size = static_cast<int>(weights.numel());
-    int count = static_cast<int>(N*C*H);
+    int count = static_cast<int>(N*C*H*W*D);
     
     if (count > 0) {
         if (active_flag){
@@ -193,9 +195,11 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     int64_t N = grad.size(0);
     int64_t C = grad.size(1);
     int64_t H = grad.size(2);
+    int64_t W = (nD<2)?1:input.size(3);
+    int64_t D = (nD<3)?1:input.size(4);
     
     int weights_size = static_cast<int>(weights.numel());
-    int count = static_cast<int>(N*C*H);
+    int count = static_cast<int>(N*C*H*W*D);
 
     if (count > 0) {
         if (active_flag) {

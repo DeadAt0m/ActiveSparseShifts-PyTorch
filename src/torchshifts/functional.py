@@ -48,6 +48,7 @@ except:
 
 Tensor = torch.Tensor
 
+
 def shift_dispatcher(dimension, *args):
     assert TORCHSHIFTS_CPU_AVAILABLE, "something went wrong during importing C module"
     is_cuda = args[0].is_cuda
@@ -62,11 +63,11 @@ def shift_dispatcher(dimension, *args):
             return handle_torch_function(func, tensor_args, *args )
     return func(*args)
 
+
 def _forward_template(dim, ctx, input, weight, padding_mode, active_flag):
-    assert type(padding_mode) == int, f'shift{dim}d_func() expected int padding_mode'
-    assert padding_mode in list(range(5)), f'shift{dim}d_func() expected padding_mode can be 0 - zeros, 1 - border, 2 - periodic, 3 - reflect, 4 - symmetric'
+    assert padding_mode in [0,1,2,3,4], f'shift{dim}d_func() expected padding_mode can be 0 - zeros, 1 - border, 2 - periodic, 3 - reflect, 4 - symmetric'
     assert len(input.shape) == 2+dim, f'shift{dim}d_func(): expected {2+dim}D tensor as input, but it is shape is {input.shape}'
-    assert len(weight.shape) == (dim + (1 if dim == 1 else 0)), f'shift{dim}d_func(): expected {dim + (1 if dim == 1 else 0)} tensor as weight, but it is shape is {weight.shape}'
+    assert weight.shape[-1] == dim, f'shift{dim}d_func(): expected [n_channels,{dim}] tensor as weight, but it is shape is {weight.shape}'
     assert input.shape[1] == weight.shape[0],  f'shift{dim}d_func(): expected that input and weight have equal number of channels, but input have {input.shape[1]} and weight have {weight.shape[0]} channels.'
     assert input.device == weight.device, f'shift{dim}d_func(): expected input and weights to be on same device, but input is  on {input.device} and weights is on {weight.device}'
     ctx.padding_mode = padding_mode
@@ -74,6 +75,7 @@ def _forward_template(dim, ctx, input, weight, padding_mode, active_flag):
     ctx.save_for_backward(input, weight)
     output = shift_dispatcher(dim, input, weight, padding_mode, active_flag)
     return output
+
 
 def _backward_template(dim, ctx, grad_output):
     input, weight = ctx.saved_tensors
@@ -89,6 +91,8 @@ class shift1d_func(Function):
     def backward(ctx, grad_output):
         return _backward_template(1, ctx, grad_output)
 
+  
+  
 class shift2d_func(Function):
     @staticmethod
     def forward(ctx, input, weight, padding_mode, active_flag):
