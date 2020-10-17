@@ -1,51 +1,86 @@
+MODULE_NAME = 'torchshifts' 
+MODULE_VERSION = '2.1'
+#DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
+#(We use c++17 for using "constexpr" in our code)
+STD_VERSION = "c++17"
+PYTORCH_VERSION = "1.6"
+
+
+import sys, os
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDA_HOME
 from torch.utils.cpp_extension import CppExtension, CUDAExtension
+from torch.cuda import is_available as cuda_available
 from pathlib import Path
-lib_path = "-I"+str(Path(__file__).parent.resolve() / 'src')
+from setup_utils import check_for_openmp, clean
 
 
-p_opt_dict = {'native':'-DAT_PARALLEL_NATIVE=1',
-              'openmp':'-DAT_PARALLEL_OPENMP=1',
-              'windows':'-DAT_PARALLEL_NATIVE_TBB=1',
-               None:''}
+requirements = [f'torch >= {PYTORCH_VERSION}']
 
-#DO CHANGE ON EARLIER STANDARDS PLEASE
-#(We use c++17 for using "constexpr" in our code)
-STDversion = "c++17"
-assert int(STDversion.strip('c++')) >= 17, "DO CHANGE ON EARLIER STANDARDS PLEASE"
 
-p_method='openmp'
-print("We use openmp for parallelization on CPU, look inside setup.py to change it if needed")
+def get_extensions():
+    extensions_dir = Path(__file__).resolve().parent / MODULE_NAME / 'csrc'
 
-modules = [
-    CppExtension('torchshifts.shifts_cpu',
-                 ['src/cpu/shifts_cpu.cpp'],
-                 extra_compile_args=[f'-std={STDversion}','-fopenmp',p_opt_dict[p_method], lib_path]),
-]
+    sources = extensions_dir.glob('*.cpp')
+    sources += (extensions_dir / 'cpu').glob('*.cpp')
 
-# If nvcc is available, add the CUDA extension
-print(f'Building with{"" if CUDA_HOME else "out"} CUDA')
+    extension = CppExtension
 
-if CUDA_HOME:
-    modules.append(
-        CUDAExtension('torchshifts.shifts_cuda',
-                      ['src/cuda/shifts_cuda.cpp',
-                       'src/cuda/shifts_kernels.cu',  
-                      ],
-                       extra_compile_args=[lib_path])
-    )
+    define_macros = []
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}']}
+
+    parallel_method = ['-DAT_PARALLEL_NATIVE=1']
+    if sys.platform == 'win32':
+        parallel_method = ['-DAT_PARALLEL_NATIVE_TBB=1']
+        extra_compile_args['cxx'].append('/MP')
+    if sys.platform == 'linux':
+        if check_for_openmp():
+            parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
+    extra_compile_args['cxx'].extend(parallel_method)
+
+    if (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1':
+        print('Building with CUDA')
+        extension = CUDAExtension
+        sources += (extensions_dir / 'cuda').glob('*.cu')
+        define_macros += [('WITH_CUDA', None)]
+        extra_compile_args['nvcc'] = [] if os.getenv('NVCC_FLAGS', '') == '' else os.getenv('NVCC_FLAGS', '').split(' ')
+
+
+    sources = list(map(lambda x: str(x.resolve()), sources))
+    include_dirs = [str(extensions_dir)]
+
+    ext_modules = [
+        extension(
+            f'{MODULE_NAME}._C',
+            sources,
+            include_dirs=include_dirs,
+            define_macros=define_macros,
+            extra_compile_args=extra_compile_args,
+        )
+    ]
+    return ext_modules
+
 
 setup(
-    name='torchshifts',
-    version='2.0',
+    # Metadata
+    name=MODULE_NAME,
+    version=MODULE_VERSION,
     description='Implementation of Sparse Active Shift https://arxiv.org/pdf/1903.05285.pdf for PyTorch',
     keywords=['shifts','activeshifts', 'shiftspytorch'],
-    author='Ignatii Dubyshkin',
+    author='Ignatii Dubyshkin aka DeadAt0m',
     author_email='kheldi@yandex.ru',
-    packages=find_packages(where='src'),
-    package_dir={"": "src"},
-    ext_modules=modules,
+    url='https://github.com/DeadAt0m/ActiveSparseShifts-PyTorch',
+    license='BSD',
+
+    # Package info
+    packages=find_packages(where=MODULE_NAME),
+    package_dir={"": MODULE_NAME},
+    package_data={ MODULE_NAME:['*.dll', '*.dylib', '*.so'] },
+    zip_safe=False,
+    install_requires=requirements,
+    ext_modules=get_extensions(),
     cmdclass={
-        'build_ext': BuildExtension.with_options(no_python_abi_suffix=True)
-    })
+        'build_ext': BuildExtension.with_options(no_python_abi_suffix=True),
+        'clean': clean,
+    }
+)

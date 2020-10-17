@@ -1,4 +1,7 @@
 #include "interpolation.h"
+#include "global_scope.h"
+
+
 enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 
 #define STATIC_IF(e) if constexpr(e)

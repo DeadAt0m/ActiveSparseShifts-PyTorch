@@ -1,11 +1,5 @@
-#ifndef _SHIFTS_CUDA_KERNELS
-#define _SHIFTS_CUDA_KERNELS
-
-#include "shifts_cuda.h"
-#include <THC/THCAtomics.cuh>
-#include <ATen/cuda/detail/IndexUtils.cuh>
-#include <ATen/cuda/detail/KernelUtils.h>
-
+#ifndef _SHIFTS_CUDA
+#define _SHIFTS_CUDA
 
 using namespace at::cuda::detail;
 
@@ -139,11 +133,11 @@ __global__ void _shifts_backward_cuda(const int n_threads,
 }
 
 template <int nD>
-torch::Tensor shiftnd_cuda(const torch::Tensor& input,
-                           const torch::Tensor& weights,
-                           int padding_mode,
-                           bool active_flag){
-    std::string name = "shift"+std::to_string(nD)+"d_cpu";
+torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
+                                   const torch::Tensor& weights,
+                                   int padding_mode,
+                                   bool active_flag){
+    std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
     torch::Tensor output = torch::zeros_like(input, input.options());
     
     int64_t N = input.size(0);
@@ -233,51 +227,79 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
 }
 
 
-torch::Tensor _shift1d_cuda(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int padding_mode,
-                            bool active_flag){
-return shiftnd_cuda<1>(input, weights, padding_mode, active_flag);                    
+#define CHECK_CUDA(x) AT_ASSERTM(x.type().is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CONTIGUOUS(x) AT_ASSERTM(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_INPUT(x) CHECK_CUDA(x); CHECK_CONTIGUOUS(x)
+
+torch::Tensor shift1d_forward_cuda(const torch::Tensor& input,
+                                   const torch::Tensor& weights,
+                                   int64_t padding_mode,
+                                   bool active_flag){
+    CHECK_INPUT(input);
+    CHECK_INPUT(weights);
+    return shiftnd_forward_cuda<1>(input, weights, static_cast<int>(padding_mode), active_flag);                    
 }
 
-torch::Tensor _shift2d_cuda(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int padding_mode,
-                            bool active_flag){
-return shiftnd_cuda<2>(input, weights, padding_mode, active_flag);                    
+torch::Tensor shift2d_forward_cuda(const torch::Tensor& input,
+                                   const torch::Tensor& weights,
+                                   int64_t padding_mode,
+                                   bool active_flag){
+    CHECK_INPUT(input);
+    CHECK_INPUT(weights);
+    return shiftnd_forward_cuda<2>(input, weights, static_cast<int>(padding_mode), active_flag);                     
 }
 
-torch::Tensor _shift3d_cuda(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int padding_mode,
-                            bool active_flag){
-return shiftnd_cuda<3>(input, weights, padding_mode, active_flag);                    
+torch::Tensor shift3d_forward_cuda(const torch::Tensor& input,
+                                   const torch::Tensor& weights,
+                                   int64_t padding_mode,
+                                   bool active_flag){
+    CHECK_INPUT(input);
+    CHECK_INPUT(weights);
+    return shiftnd_forward_cuda<3>(input, weights, static_cast<int>(padding_mode), active_flag);                     
 }
 
 
-std::vector<torch::Tensor> _shift1d_backward_cuda(const torch::Tensor& grad,
-                                                  const torch::Tensor& weights,
-                                                  const torch::Tensor& input,
-                                                  int padding_mode,
-                                                  bool active_flag){
-return  shiftnd_backward_cuda<1>(grad, weights, input, padding_mode, active_flag);                                       
+std::vector<torch::Tensor> shift1d_backward_cuda(const torch::Tensor& grad,
+                                                 const torch::Tensor& weights,
+                                                 const torch::Tensor& input,
+                                                 int64_t padding_mode,
+                                                 bool active_flag){
+    CHECK_INPUT(grad); 
+    CHECK_INPUT(weights);
+    CHECK_INPUT(input);
+    return  shiftnd_backward_cuda<1>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                        
 }
 
-std::vector<torch::Tensor> _shift2d_backward_cuda(const torch::Tensor& grad,
-                                                  const torch::Tensor& weights,
-                                                  const torch::Tensor& input,
-                                                  int padding_mode,
-                                                  bool active_flag){
-return  shiftnd_backward_cuda<2>(grad, weights, input, padding_mode, active_flag);                                       
+std::vector<torch::Tensor> shift2d_backward_cuda(const torch::Tensor& grad,
+                                                 const torch::Tensor& weights,
+                                                 const torch::Tensor& input,
+                                                 int64_t padding_mode,
+                                                 bool active_flag){
+    CHECK_INPUT(grad);
+    CHECK_INPUT(weights);
+    CHECK_INPUT(input);
+    return  shiftnd_backward_cuda<2>(grad, weights, input, static_cast<int>(padding_mode), active_flag);     
 }
 
-std::vector<torch::Tensor> _shift3d_backward_cuda(const torch::Tensor& grad,
-                                                  const torch::Tensor& weights,
-                                                  const torch::Tensor& input,
-                                                  int padding_mode,
-                                                  bool active_flag){
-return  shiftnd_backward_cuda<3>(grad, weights, input, padding_mode, active_flag);
+std::vector<torch::Tensor> shift3d_backward_cuda(const torch::Tensor& grad,
+                                                 const torch::Tensor& weights,
+                                                 const torch::Tensor& input,
+                                                 int64_t padding_mode,
+                                                 bool active_flag){
+    CHECK_INPUT(grad);
+    CHECK_INPUT(weights);
+    CHECK_INPUT(input);
+    return  shiftnd_backward_cuda<3>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                        
 }
 
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
+    m.def("shift1d_forward_cuda", &shift1d_forward_cuda, "1D Shift operation forward (cuda)");
+    m.def("shift2d_forward_cuda", &shift2d_forward_cuda, "2D Shift operation forward (cuda)");
+    m.def("shift3d_forward_cuda", &shift3d_forward_cuda, "3D Shift operation forward (cuda)");
+    m.def("shift1d_backward_cuda", &shift1d_backward_cuda, "1D Shift operator backward (cuda)");
+    m.def("shift2d_backward_cuda", &shift2d_backward_cuda, "2D Shift operator backward (cuda)");
+    m.def("shift3d_backward_cuda", &shift3d_backward_cuda, "3D Shift operator backward (cuda)");
+};
 
 #endif

@@ -1,8 +1,7 @@
 #ifndef _SHIFTS_CPU
 #define _SHIFTS_CPU
 
-#include <torch/extension.h>
-#include <torch/script.h>
+
 #include "kernels/shifts_kernels.h"
 
 
@@ -175,11 +174,11 @@ FTYPE void _shifts_backward_cpu(const torch::Tensor& grad_input, const torch::Te
 
 
 template <int nD>
-torch::Tensor shiftnd_cpu(const torch::Tensor& input,
-                          const torch::Tensor& weights,
-                          int padding_mode,
-                          bool active_flag){
-    std::string name = "shift"+std::to_string(nD)+"d_cpu";
+torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
+                                  const torch::Tensor& weights,
+                                  int padding_mode,
+                                  bool active_flag){
+    std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
     torch::Tensor output = torch::zeros_like(input, input.options());
 
     if (active_flag){
@@ -247,25 +246,28 @@ std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
   return {out_grad, weights_grad};
 }
 
-torch::Tensor shift1d_cpu(const torch::Tensor& input,
-                          const torch::Tensor& weights,
-                          int64_t padding_mode,
-                          bool active_flag){
-    return shiftnd_cpu<1>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+
+
+
+torch::Tensor shift1d_forward_cpu(const torch::Tensor& input,
+                                  const torch::Tensor& weights,
+                                  int64_t padding_mode,
+                                  bool active_flag){
+    return shiftnd_forward_cpu<1>(input, weights, static_cast<int>(padding_mode), active_flag);                    
 }
 
-torch::Tensor shift2d_cpu(const torch::Tensor& input,
-                          const torch::Tensor& weights,
-                          int64_t padding_mode,
-                          bool active_flag){
-    return shiftnd_cpu<2>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+torch::Tensor shift2d_forward_cpu(const torch::Tensor& input,
+                                  const torch::Tensor& weights,
+                                  int64_t padding_mode,
+                                  bool active_flag){
+    return shiftnd_forward_cpu<2>(input, weights, static_cast<int>(padding_mode), active_flag);                    
 }
 
-torch::Tensor shift3d_cpu(const torch::Tensor& input,
-                          const torch::Tensor& weights,
-                          int64_t padding_mode,
-                          bool active_flag){
-    return shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+torch::Tensor shift3d_forward_cpu(const torch::Tensor& input,
+                                  const torch::Tensor& weights,
+                                  int64_t padding_mode,
+                                  bool active_flag){
+    return shiftnd_forward_cpu<3>(input, weights, static_cast<int>(padding_mode), active_flag);                    
 }
 
 
@@ -311,32 +313,14 @@ torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
     return q_shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode));                    
 }
 
-
-TORCH_LIBRARY(shifts_cpu, m) {
-    m.def("shift1d_cpu", &shift1d_cpu);
-    m.def("shift2d_cpu", &shift2d_cpu);
-    m.def("shift3d_cpu", &shift3d_cpu);
-    m.def("q_shift1d_cpu", &q_shift1d_cpu);
-    m.def("q_shift2d_cpu", &q_shift2d_cpu);
-    m.def("q_shift3d_cpu", &q_shift3d_cpu);
-    m.def("shift1d_backward_cpu", &shift1d_backward_cpu);
-    m.def("shift2d_backward_cpu", &shift2d_backward_cpu);
-    m.def("shift3d_backward_cpu", &shift3d_backward_cpu); 
-}
-
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
-    m.def("shift1d_cpu", &shift1d_cpu, "1D Shift operation forward (cpu)");
-    m.def("shift2d_cpu", &shift2d_cpu, "2D Shift operation forward (cpu)");
-    m.def("shift3d_cpu", &shift3d_cpu, "3D Shift operation forward (cpu)");
-    m.def("q_shift1d_cpu", &q_shift1d_cpu, "Quantized(PyTorch) 1D Shift operation forward (cpu)");
-    m.def("q_shift2d_cpu", &q_shift2d_cpu, "Quantized(PyTorch) 2D Shift operation forward (cpu)");
-    m.def("q_shift3d_cpu", &q_shift3d_cpu, "Quantized(PyTorch) 3D Shift operation forward (cpu)");
+    m.def("shift1d_forward_cpu", &shift1d_forward_cpu, "1D Shift operation forward (cpu)");
+    m.def("shift2d_forward_cpu", &shift2d_forward_cpu, "2D Shift operation forward (cpu)");
+    m.def("shift3d_forward_cpu", &shift3d_forward_cpu, "3D Shift operation forward (cpu)");
     m.def("shift1d_backward_cpu", &shift1d_backward_cpu, "1D Shift operator backward (cpu)");
     m.def("shift2d_backward_cpu", &shift2d_backward_cpu, "2D Shift operator backward (cpu)");
     m.def("shift3d_backward_cpu", &shift3d_backward_cpu, "3D Shift operator backward (cpu)");
 };
-
-
 
 
 #endif
