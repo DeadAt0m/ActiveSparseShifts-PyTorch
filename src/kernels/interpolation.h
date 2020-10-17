@@ -27,7 +27,7 @@ FTYPE scalar_t interp2D_dx(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4, s
 template<typename scalar_t>
 FTYPE scalar_t interp2D_dy(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4, scalar_t x)
 {
-    return interp1D(interp1D_dx(v1, v2), interp1D_dx(v3, v4), x);
+    return interp1D_dx(interp1D(v1, v2, x), interp1D(v3, v4, x));
 }
 
 template<typename scalar_t>

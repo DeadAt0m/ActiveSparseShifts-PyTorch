@@ -88,15 +88,22 @@ FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
     }                           
 }
 
-template <typename scalar_t, typename idx_t, bool reverse=false>
+template <typename scalar_t, bool reverse>
+FTYPE scalar_t rev_shift(scalar_t diff_shift){
+    return (reverse)?(static_cast<scalar_t>(1)-diff_shift):diff_shift;
+}
+
+template <typename scalar_t, typename idx_t, bool reverse>
 FTYPE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
                                     idx_t sizeH, idx_t sizeW, idx_t sizeD){
-    scalar_t rcoeff = static_cast<scalar_t>((reverse)?-1:1);
     if (sizeD>1){return interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                 rcoeff*diff_shiftH, rcoeff*diff_shiftW, rcoeff*diff_shiftD);}
+                                 rev_shift<scalar_t,reverse>(diff_shiftH), 
+                                 rev_shift<scalar_t,reverse>(diff_shiftW),
+                                 rev_shift<scalar_t,reverse>(diff_shiftD));}
     else if (sizeW>1){return interp2D(v[0], v[1], v[2], v[3], 
-                                      rcoeff*diff_shiftH, rcoeff*diff_shiftW);}
-    else {return interp1D(v[0], v[1], rcoeff*diff_shiftH);}
+                                      rev_shift<scalar_t,reverse>(diff_shiftH),
+                                      rev_shift<scalar_t,reverse>(diff_shiftW));}
+    else {return interp1D(v[0], v[1], rev_shift<scalar_t,reverse>(diff_shiftH));}
 }
 
 template <typename scalar_t, typename idx_t>
