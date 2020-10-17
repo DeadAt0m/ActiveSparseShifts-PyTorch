@@ -1,3 +1,4 @@
+#pragma once
 #include <torch/extension.h>
 #ifdef _SHIFTS_CPU
     #include <cmath>

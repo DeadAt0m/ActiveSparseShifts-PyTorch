@@ -313,14 +313,4 @@ torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
     return q_shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode));                    
 }
 
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
-    m.def("shift1d_forward_cpu", &shift1d_forward_cpu, "1D Shift operation forward (cpu)");
-    m.def("shift2d_forward_cpu", &shift2d_forward_cpu, "2D Shift operation forward (cpu)");
-    m.def("shift3d_forward_cpu", &shift3d_forward_cpu, "3D Shift operation forward (cpu)");
-    m.def("shift1d_backward_cpu", &shift1d_backward_cpu, "1D Shift operator backward (cpu)");
-    m.def("shift2d_backward_cpu", &shift2d_backward_cpu, "2D Shift operator backward (cpu)");
-    m.def("shift3d_backward_cpu", &shift3d_backward_cpu, "3D Shift operator backward (cpu)");
-};
-
-
 #endif

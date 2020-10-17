@@ -292,14 +292,4 @@ std::vector<torch::Tensor> shift3d_backward_cuda(const torch::Tensor& grad,
     return  shiftnd_backward_cuda<3>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                        
 }
 
-
-PYBIND11_MODULE(TORCH_EXTENSION_NAME, m){
-    m.def("shift1d_forward_cuda", &shift1d_forward_cuda, "1D Shift operation forward (cuda)");
-    m.def("shift2d_forward_cuda", &shift2d_forward_cuda, "2D Shift operation forward (cuda)");
-    m.def("shift3d_forward_cuda", &shift3d_forward_cuda, "3D Shift operation forward (cuda)");
-    m.def("shift1d_backward_cuda", &shift1d_backward_cuda, "1D Shift operator backward (cuda)");
-    m.def("shift2d_backward_cuda", &shift2d_backward_cuda, "2D Shift operator backward (cuda)");
-    m.def("shift3d_backward_cuda", &shift3d_backward_cuda, "3D Shift operator backward (cuda)");
-};
-
 #endif
