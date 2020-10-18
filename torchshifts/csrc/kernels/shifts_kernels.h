@@ -1,5 +1,5 @@
+#include "../global_scope.h"
 #include "interpolation.h"
-#include "global_scope.h"
 
 
 enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
@@ -10,10 +10,10 @@ enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 #define STATIC_ENDIF 
 
 template<typename T>
-FTYPE T mod(T a, T b){return (b + (a % b)) % b;}
+API_INCLUDE T mod(T a, T b){return (b + (a % b)) % b;}
 
 template<typename idx_t>
-FTYPE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
+API_INCLUDE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
     if ((index < len) && (index >= 0)) {return index;};
     idx_t out_index = index;
     bool odd_seq;
@@ -43,12 +43,12 @@ FTYPE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
 }
 
 template<typename scalar_t, typename idx_t>
-FTYPE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
-                                 idx_t j_shifted, idx_t sizeW, idx_t strideW,
-                                 idx_t k_shifted, idx_t sizeD, idx_t strideD,
-                                 idx_t c, idx_t strideC,
-                                 scalar_t* array, scalar_t zero_point, 
-                                 BIPadding padding_mode){
+API_INCLUDE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
+                                       idx_t j_shifted, idx_t sizeW, idx_t strideW,
+                                       idx_t k_shifted, idx_t sizeD, idx_t strideD,
+                                       idx_t c, idx_t strideC,
+                                       scalar_t* array, scalar_t zero_point, 
+                                       BIPadding padding_mode){
     scalar_t output_value = zero_point;
     idx_t tidx_i = -1;
     idx_t tidx_j = -1;
@@ -63,12 +63,12 @@ FTYPE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
 }
 
 template<typename scalar_t, typename idx_t>
-FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
-                              idx_t j_shifted, idx_t sizeW, idx_t strideW,
-                              idx_t k_shifted, idx_t sizeD, idx_t strideD,
-                              idx_t c, idx_t strideC,
-                              scalar_t* array, scalar_t zero_point, 
-                              BIPadding padding_mode, scalar_t* output_values){
+API_INCLUDE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
+                                    idx_t j_shifted, idx_t sizeW, idx_t strideW,
+                                    idx_t k_shifted, idx_t sizeD, idx_t strideD,
+                                    idx_t c, idx_t strideC,
+                                    scalar_t* array, scalar_t zero_point, 
+                                    BIPadding padding_mode, scalar_t* output_values){
     output_values[0] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
                                          k_shifted, sizeD, strideD, c, strideC, array, zero_point, padding_mode);
     output_values[1] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
@@ -92,13 +92,13 @@ FTYPE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
 }
 
 template <typename scalar_t, bool reverse>
-FTYPE scalar_t rev_shift(scalar_t diff_shift){
+API_INCLUDE scalar_t rev_shift(scalar_t diff_shift){
     return (reverse)?(static_cast<scalar_t>(1)-diff_shift):diff_shift;
 }
 
 template <typename scalar_t, typename idx_t, bool reverse>
-FTYPE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                    idx_t sizeH, idx_t sizeW, idx_t sizeD){
+API_INCLUDE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
+                                          idx_t sizeH, idx_t sizeW, idx_t sizeD){
     if (sizeD>1){return interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
                                  rev_shift<scalar_t,reverse>(diff_shiftH), 
                                  rev_shift<scalar_t,reverse>(diff_shiftW),
@@ -110,8 +110,8 @@ FTYPE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t 
 }
 
 template <typename scalar_t, typename idx_t>
-FTYPE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                    idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t* output_grad){
+API_INCLUDE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
+                                          idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t* output_grad){
     if (sizeD>1){
         output_grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
                                    diff_shiftW, diff_shiftD);
@@ -133,14 +133,14 @@ FTYPE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t 
 }
 
 template <typename scalar_t, typename idx_t, bool quantized, bool active>
-FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
-                                      idx_t* weights, scalar_t* dweights,
-                                      idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
-                                      idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                      idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                      idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
-                                      idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
-                                      scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
+API_INCLUDE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
+                                            idx_t* weights, scalar_t* dweights,
+                                            idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
+                                            idx_t sizeH, idx_t sizeW, idx_t sizeD,
+                                            idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
+                                            idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
+                                            idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
+                                            scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
     scalar_t *input_NC = input + n*input_sN + c*input_sC;
     scalar_t *output_NCHWD= output + n*output_sN + c*output_sC + i*output_sH + j*output_sW + k*output_sD;
     scalar_t val = zero_point;
@@ -171,15 +171,15 @@ FTYPE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
 }
 
 template <typename scalar_t, typename idx_t, bool active>
-FTYPE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
-                                       idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
-                                       idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
-                                       idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                       idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
-                                       idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                       idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
-                                       idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
-                                       BIPadding padding_mode){
+API_INCLUDE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
+                                             idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
+                                             idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
+                                             idx_t sizeH, idx_t sizeW, idx_t sizeD,
+                                             idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
+                                             idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
+                                             idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
+                                             idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
+                                             BIPadding padding_mode){
     scalar_t *input_grad_NC = input_grad + n*input_grad_sN + c*input_grad_sC;
     scalar_t input_grad_NCHWD_val = input_grad_NC[i*input_grad_sH + j*input_grad_sW + k*input_grad_sD];
     scalar_t *input_NC = input + n*input_sN + c*input_sC;
@@ -223,14 +223,14 @@ FTYPE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  s
 
 
 template <typename scalar_t, typename idx_t, bool quantized, bool active>
-FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output, 
-                                      idx_t* weights, scalar_t* dweights,
-                                      idx_t n, idx_t i, idx_t j, idx_t k,
-                                      idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                      idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                      idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
-                                      idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
-                                      scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
+API_INCLUDE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output, 
+                                            idx_t* weights, scalar_t* dweights,
+                                            idx_t n, idx_t i, idx_t j, idx_t k,
+                                            idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
+                                            idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
+                                            idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
+                                            idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
+                                            scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
     scalar_t *input_N = input + n*input_sN;
     scalar_t *output_NHWD = output + n*output_sN + i*output_sH + j*output_sW + k*output_sD;
     scalar_t val = zero_point;
@@ -265,15 +265,15 @@ FTYPE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
 }
 
 template <typename scalar_t, typename idx_t, bool active>
-FTYPE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
-                                       idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
-                                       idx_t n, idx_t i, idx_t j, idx_t k,
-                                       idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                       idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
-                                       idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                       idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
-                                       idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
-                                       BIPadding padding_mode){
+API_INCLUDE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
+                                             idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
+                                             idx_t n, idx_t i, idx_t j, idx_t k,
+                                             idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
+                                             idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
+                                             idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
+                                             idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
+                                             idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
+                                             BIPadding padding_mode){
     scalar_t *input_grad_N = input_grad + n*input_grad_sN;
     scalar_t *input_N = input + n*input_sN;
     scalar_t *output_grad_NHWD= output_grad + n*output_grad_sN + i*output_grad_sH + j*output_grad_sW + k*output_grad_sD;         
@@ -324,7 +324,7 @@ FTYPE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  s
 
 
 template <typename in_t, typename out_t, bool q_type, bool active>
-FTYPE void init_weights(in_t* src, out_t*& dst, const int size)
+API_INCLUDE void init_weights(in_t* src, out_t*& dst, const int size)
 {
     dst = new out_t[size];
     for (int i = 0; i < size; ++i) 
@@ -342,7 +342,7 @@ FTYPE void init_weights(in_t* src, out_t*& dst, const int size)
 
 
 template <typename scalar_t>
-FTYPE void init_weight_offsets(scalar_t* src, scalar_t*& dst, const int size)
+API_INCLUDE void init_weight_offsets(scalar_t* src, scalar_t*& dst, const int size)
 {
     dst = new scalar_t[size];
     for (int i = 0; i < size; ++i) 

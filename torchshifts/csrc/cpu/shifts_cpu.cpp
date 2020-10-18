@@ -1,15 +1,15 @@
 #ifndef _SHIFTS_CPU
 #define _SHIFTS_CPU
 
-
-#include "kernels/shifts_kernels.h"
+#include "shifts_cpu.h"
+#include "../kernels/shifts_kernels.h"
 
 
 
 
 template <typename scalar_t, int32_t kSpatialDim, bool quantized, bool active>
-FTYPE void _shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
-                       torch::Tensor& output, BIPadding padding_mode){
+FTYPE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Tensor& weights,
+                               torch::Tensor& output, BIPadding padding_mode){
     int64_t sizeN = input.size(0);
     int64_t sizeC = input.size(1);
     int64_t sizeH = input.size(2);
@@ -183,14 +183,14 @@ torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
 
     if (active_flag){
             AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
-                _shifts_cpu<scalar_t, nD, false, true>(input, weights, output,
-                                                       static_cast<BIPadding>(padding_mode));
+                _shifts_forward_cpu<scalar_t, nD, false, true>(input, weights, output,
+                                                               static_cast<BIPadding>(padding_mode));
             });   
     }
    else {
              AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
-                _shifts_cpu<scalar_t, nD, false, false>(input, weights, output,
-                                                        static_cast<BIPadding>(padding_mode));
+                _shifts_forward_cpu<scalar_t, nD, false, false>(input, weights, output,
+                                                                static_cast<BIPadding>(padding_mode));
             }); 
     }
     return output;
@@ -199,8 +199,8 @@ torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
 
 template <int nD>
 torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
-                          const torch::Tensor& weights,
-                          int padding_mode){
+                            const torch::Tensor& weights,
+                            int padding_mode){
     std::string name = "shift"+std::to_string(nD)+"d_cpu";
     torch::Tensor output;
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
@@ -212,8 +212,8 @@ torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
     }
 
     AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-            _shifts_cpu<scalar_t, nD, true, false>(input, weights, output,
-                                                   static_cast<BIPadding>(padding_mode));
+            _shifts_forward_cpu<scalar_t, nD, true, false>(input, weights, output,
+                                                           static_cast<BIPadding>(padding_mode));
         }); 
     
     
@@ -251,66 +251,66 @@ std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
 
 torch::Tensor shift1d_forward_cpu(const torch::Tensor& input,
                                   const torch::Tensor& weights,
-                                  int64_t padding_mode,
+                                  int padding_mode,
                                   bool active_flag){
-    return shiftnd_forward_cpu<1>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+    return shiftnd_forward_cpu<1>(input, weights, padding_mode, active_flag);                    
 }
 
 torch::Tensor shift2d_forward_cpu(const torch::Tensor& input,
                                   const torch::Tensor& weights,
-                                  int64_t padding_mode,
+                                  int padding_mode,
                                   bool active_flag){
-    return shiftnd_forward_cpu<2>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+    return shiftnd_forward_cpu<2>(input, weights, padding_mode, active_flag);                    
 }
 
 torch::Tensor shift3d_forward_cpu(const torch::Tensor& input,
                                   const torch::Tensor& weights,
-                                  int64_t padding_mode,
+                                  int padding_mode,
                                   bool active_flag){
-    return shiftnd_forward_cpu<3>(input, weights, static_cast<int>(padding_mode), active_flag);                    
+    return shiftnd_forward_cpu<3>(input, weights, padding_mode, active_flag);                    
 }
 
 
 std::vector<torch::Tensor> shift1d_backward_cpu(const torch::Tensor& grad,
                                                 const torch::Tensor& weights,
                                                 const torch::Tensor& input,
-                                                int64_t padding_mode,
+                                                int padding_mode,
                                                 bool active_flag){
-    return  shiftnd_backward_cpu<1>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                       
+    return  shiftnd_backward_cpu<1>(grad, weights, input, padding_mode, active_flag);                                       
 }
 
 std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& grad,
                                                 const torch::Tensor& weights,
                                                 const torch::Tensor& input,
-                                                int64_t padding_mode,
+                                                int padding_mode,
                                                 bool active_flag){
-    return  shiftnd_backward_cpu<2>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                       
+    return  shiftnd_backward_cpu<2>(grad, weights, input, padding_mode, active_flag);                                       
 }
 
 std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
                                                 const torch::Tensor& weights,
                                                 const torch::Tensor& input,
-                                                int64_t padding_mode,
+                                                int padding_mode,
                                                 bool active_flag){
-    return  shiftnd_backward_cpu<3>(grad, weights, input, static_cast<int>(padding_mode), active_flag);                                       
+    return  shiftnd_backward_cpu<3>(grad, weights, input, padding_mode, active_flag);                                       
 }
 
 torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
-                            int64_t padding_mode){
-    return q_shiftnd_cpu<1>(input, weights, static_cast<int>(padding_mode));                    
+                            int padding_mode){
+    return q_shiftnd_cpu<1>(input, weights, padding_mode);                    
 }
 
 torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
-                            int64_t padding_mode){
-    return q_shiftnd_cpu<2>(input, weights, static_cast<int>(padding_mode));                    
+                            int padding_mode){
+    return q_shiftnd_cpu<2>(input, weights, padding_mode);                    
 }
 
 torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
-                            int64_t padding_mode){
-    return q_shiftnd_cpu<3>(input, weights, static_cast<int>(padding_mode));                    
+                            int padding_mode){
+    return q_shiftnd_cpu<3>(input, weights, padding_mode);                    
 }
 
 #endif

@@ -33,6 +33,7 @@ def get_extensions():
     if sys.platform == 'win32':
         parallel_method = ['-DAT_PARALLEL_NATIVE_TBB=1']
         extra_compile_args['cxx'].append('/MP')
+        define_macros += [('TORCHSHIFTS_EXPORTS', None)]
     if sys.platform == 'linux':
         if check_for_openmp():
             parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
