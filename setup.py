@@ -6,7 +6,7 @@ STD_VERSION = "c++17"
 PYTORCH_VERSION = "1.6"
 
 
-import sys, os
+import sys, os, copy
 from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDA_HOME
 from torch.utils.cpp_extension import CppExtension, CUDAExtension
@@ -20,22 +20,22 @@ cwd = Path.cwd()
 
 requirements = [f'torch >= {PYTORCH_VERSION}']
 
-
+version = copy.copy(MODULE_VERSION)
 sha = 'Unknown'
 try:
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(cwd)).decode('ascii').strip()
 except Exception:
     pass
 if sha != 'Unknown':
-    MODULE_VERSION += '+' + sha[:7]
-print(f'Building wheel {MODULE_NAME}-{MODULE_VERSION}')
+    version += '+' + sha[:7]
+print(f'Building wheel {MODULE_NAME}-{version}')
 
 version_path = cwd / MODULE_NAME / 'version.py'
 if version_path.exists():
     version_path.unlink()
 version_path.touch()
 version_path = version_path.open("a")
-version_path.write(f"__version__ = '{MODULE_VERSION}'\n")
+version_path.write(f"__version__ = '{version}'\n")
 version_path.write(f"git_version = {repr(sha)}\n")
 version_path.write(f"from {MODULE_NAME}.extension import _check_cuda_version\n")
 version_path.write("if _check_cuda_version() > 0:\n")
