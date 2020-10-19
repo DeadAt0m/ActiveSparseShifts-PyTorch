@@ -13,13 +13,33 @@ from torch.utils.cpp_extension import CppExtension, CUDAExtension
 from torch.cuda import is_available as cuda_available
 from pathlib import Path
 from setup_utils import check_for_openmp, clean
+cwd = Path.cwd()
+
 
 
 requirements = [f'torch >= {PYTORCH_VERSION}']
 
 
+sha = 'Unknown'
+try:
+    sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(cwd)).decode('ascii').strip()
+except Exception:
+    pass
+if sha != 'Unknown':
+    MODULE_VERSION += '+' + sha[:7]
+print(f'Building wheel {MODULE_NAME}-{MODULE_VERSION}')
+
+version_path = cwd / MODULE_NAME / 'version.py'
+version_path.touch()
+version_path.write_text(f"__version__ = '{MODULE_VERSION}'\n", mode='a')
+version_path.write_text(f"git_version = {repr(sha)}\n", mode='a')
+version_path.write_text(f"from {MODULE_NAME}.extension import _check_cuda_version\n", mode='a')
+version_path.write_text("if _check_cuda_version() > 0:\n", mode='a')
+version_path.write_text("    cuda = _check_cuda_version()\n", mode='a')
+
+
 def get_extensions():
-    extensions_dir = Path(__file__).resolve().parent / MODULE_NAME / 'csrc'
+    extensions_dir = cwd / MODULE_NAME / 'csrc'
 
     sources = extensions_dir.glob('*.cpp')
     sources += (extensions_dir / 'cpu').glob('*.cpp')
