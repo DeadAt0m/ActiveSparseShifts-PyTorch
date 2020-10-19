@@ -16,7 +16,7 @@ class _Shiftnd(nn.Module):
             active_shift(bool) - Compute forward pass via bilinear interpolation. Default: False.
     """
     def __init__(self, in_channels, padding='zeros',
-                 init_stride = 1,
+                 init_shift = 1,
                  sparsity_term=5e-4,
                  active_flag=False):
         super(_Shiftnd, self).__init__()
@@ -35,7 +35,7 @@ class _Shiftnd(nn.Module):
         self.weight = nn.Parameter(torch.Tensor(self.in_channels, self.dim))
         self.reset_parameters(init_shift)
 
-    def reset_parameters(self, init_sshift):
+    def reset_parameters(self, init_shift):
         self.weight.data.uniform_(-abs(init_shift), abs(init_shift))
     
     def _compute_weight_loss(self):
@@ -43,7 +43,7 @@ class _Shiftnd(nn.Module):
                 
     def forward(self, input):
         loss = self._compute_weight_loss() if bool(self.sparsity_term) else None
-        return self.__shift_func.apply(input, self.weight, self.padding, self.__active_flag), loss
+        return self.__shift_func(input, self.weight, self.padding, self.__active_flag), loss
     
     def extra_repr(self):
         pad = dict(zip(paddings_dict.values(),paddings_dict.keys()))[self.padding]
@@ -68,14 +68,14 @@ class Shift1d(_Shiftnd):
             in_channels(int) – Number of channels in the input image.
             padding(str) - Padding added to the input during shift.
                            Allowed: ['zeros', 'border', 'periodic', 'reflect', 'symmetric']. Default: 'zeros'.
-            init_stride(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
+            init_shift(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
             sparsity_term(float) - Strength of sparsity. Default: 5e-4.
             active_shift(bool) - Compute forward pass via bilinear interpolation. Default: False.
     """
     def __init__(self, in_channels, padding='zeros',
-                 init_stride = 1, sparsity_term=5e-4, active_flag=False):
+                 init_shift = 1, sparsity_term=5e-4, active_flag=False):
         self.dim = 1
-        super(Shift1d, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
+        super(Shift1d, self).__init__(in_channels, padding, init_shift, sparsity_term, active_flag)
     
     def _init_shift_fn(self):
         return shift1d_func
@@ -100,9 +100,9 @@ class Shift2d(_Shiftnd):
             active_shift(bool) - Compute forward pass via bilinear interpolation. Default: False.
     """
     def __init__(self, in_channels, padding='zeros',
-                 init_stride = 1, sparsity_term=5e-4, active_flag=False):
+                 init_shift = 1, sparsity_term=5e-4, active_flag=False):
         self.dim = 2
-        super(Shift2d, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
+        super(Shift2d, self).__init__(in_channels, padding, init_shift, sparsity_term, active_flag)
     
     def _init_shift_fn(self):
         return shift2d_func
@@ -128,9 +128,9 @@ class Shift3d(_Shiftnd):
             active_shift(bool) - Compute forward pass via bilinear interpolation. Default: False.
     """
     def __init__(self, in_channels, padding='zeros',
-                 init_stride = 1, sparsity_term=5e-4, active_flag=False):
+                 init_shift = 1, sparsity_term=5e-4, active_flag=False):
         self.dim = 3
-        super(Shift3d, self).__init__(in_channels, padding, init_stride, sparsity_term, active_flag)
+        super(Shift3d, self).__init__(in_channels, padding, init_shift, sparsity_term, active_flag)
     
     def _init_shift_fn(self):
         return shift3d_func

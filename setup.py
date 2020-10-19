@@ -84,7 +84,6 @@ def get_extensions():
     ]
     return ext_modules
 
-
 setup(
     # Metadata
     name=MODULE_NAME,
@@ -97,8 +96,8 @@ setup(
     license='BSD',
 
     # Package info
-    packages=find_packages(where=MODULE_NAME),
-    package_dir={"": MODULE_NAME},
+    packages=find_packages(),
+    package_dir={MODULE_NAME : MODULE_NAME},
     package_data={ MODULE_NAME:['*.dll', '*.dylib', '*.so'] },
     zip_safe=False,
     install_requires=requirements,

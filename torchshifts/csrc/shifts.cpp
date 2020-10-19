@@ -27,7 +27,7 @@ namespace shifts {
     }
 } 
 
-TORCH_LIBRARY(TORCH_EXTENSION_NAME, m) {
+TORCH_LIBRARY(torchshifts, m) {
     m.def("shift1d", &shift1d);
     m.def("shift2d", &shift2d);
     m.def("shift3d", &shift3d);

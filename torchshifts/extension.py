@@ -86,7 +86,7 @@ def _check_cuda_version():
         t_version = t_version.split('.')
         t_major = int(t_version[0])
         t_minor = int(t_version[1])
-        if t_major != tv_major or t_minor != tv_minor:
+        if t_major != ts_major or t_minor != ts_minor:
             raise RuntimeError("Detected that PyTorch and torchshifts were compiled with different CUDA versions. "
                                "PyTorch has CUDA Version={}.{} and torchshifts has CUDA Version={}.{}. "
                                "Please reinstall the torchshifts that matches your PyTorch install."
