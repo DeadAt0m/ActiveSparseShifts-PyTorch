@@ -10,10 +10,10 @@ enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 #define STATIC_ENDIF 
 
 template<typename T>
-API_INCLUDE T mod(T a, T b){return (b + (a % b)) % b;}
+API_INLINE T mod(T a, T b){return (b + (a % b)) % b;}
 
 template<typename idx_t>
-API_INCLUDE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
+API_INLINE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
     if ((index < len) && (index >= 0)) {return index;};
     idx_t out_index = index;
     bool odd_seq;
@@ -43,7 +43,7 @@ API_INCLUDE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
 }
 
 template<typename scalar_t, typename idx_t>
-API_INCLUDE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
+API_INLINE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                                        idx_t j_shifted, idx_t sizeW, idx_t strideW,
                                        idx_t k_shifted, idx_t sizeD, idx_t strideD,
                                        idx_t c, idx_t strideC,
@@ -63,7 +63,7 @@ API_INCLUDE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strid
 }
 
 template<typename scalar_t, typename idx_t>
-API_INCLUDE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
+API_INLINE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
                                     idx_t j_shifted, idx_t sizeW, idx_t strideW,
                                     idx_t k_shifted, idx_t sizeD, idx_t strideD,
                                     idx_t c, idx_t strideC,
@@ -92,12 +92,12 @@ API_INCLUDE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
 }
 
 template <typename scalar_t, bool reverse>
-API_INCLUDE scalar_t rev_shift(scalar_t diff_shift){
+API_INLINE scalar_t rev_shift(scalar_t diff_shift){
     return (reverse)?(static_cast<scalar_t>(1)-diff_shift):diff_shift;
 }
 
 template <typename scalar_t, typename idx_t, bool reverse>
-API_INCLUDE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
+API_INLINE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
                                           idx_t sizeH, idx_t sizeW, idx_t sizeD){
     if (sizeD>1){return interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
                                  rev_shift<scalar_t,reverse>(diff_shiftH), 
@@ -110,7 +110,7 @@ API_INCLUDE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, sca
 }
 
 template <typename scalar_t, typename idx_t>
-API_INCLUDE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
+API_INLINE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
                                           idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t* output_grad){
     if (sizeD>1){
         output_grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
@@ -133,7 +133,7 @@ API_INCLUDE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, sca
 }
 
 template <typename scalar_t, typename idx_t, bool quantized, bool active>
-API_INCLUDE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
+API_INLINE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
                                             idx_t* weights, scalar_t* dweights,
                                             idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
                                             idx_t sizeH, idx_t sizeW, idx_t sizeD,
@@ -171,7 +171,7 @@ API_INCLUDE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
 }
 
 template <typename scalar_t, typename idx_t, bool active>
-API_INCLUDE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
+API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
                                              idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
                                              idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
                                              idx_t sizeH, idx_t sizeW, idx_t sizeD,
@@ -223,7 +223,7 @@ API_INCLUDE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inp
 
 
 template <typename scalar_t, typename idx_t, bool quantized, bool active>
-API_INCLUDE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output, 
+API_INLINE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output, 
                                             idx_t* weights, scalar_t* dweights,
                                             idx_t n, idx_t i, idx_t j, idx_t k,
                                             idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
@@ -265,7 +265,7 @@ API_INCLUDE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output,
 }
 
 template <typename scalar_t, typename idx_t, bool active>
-API_INCLUDE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
+API_INLINE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
                                              idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
                                              idx_t n, idx_t i, idx_t j, idx_t k,
                                              idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
@@ -324,7 +324,7 @@ API_INCLUDE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* inp
 
 
 template <typename in_t, typename out_t, bool q_type, bool active>
-API_INCLUDE void init_weights(in_t* src, out_t*& dst, const int size)
+API_INLINE void init_weights(in_t* src, out_t*& dst, const int size)
 {
     dst = new out_t[size];
     for (int i = 0; i < size; ++i) 
@@ -342,7 +342,7 @@ API_INCLUDE void init_weights(in_t* src, out_t*& dst, const int size)
 
 
 template <typename scalar_t>
-API_INCLUDE void init_weight_offsets(scalar_t* src, scalar_t*& dst, const int size)
+API_INLINE void init_weight_offsets(scalar_t* src, scalar_t*& dst, const int size)
 {
     dst = new scalar_t[size];
     for (int i = 0; i < size; ++i) 

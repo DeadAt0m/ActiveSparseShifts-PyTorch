@@ -13,7 +13,7 @@
 
 
 
-#if _SHIFTS_CPU
+#ifdef _SHIFTS_CPU
     #include <cmath>
     #define ROUND(a) (std::round(a))
     #define FLOOR(a) (std::floor(a))

@@ -16,13 +16,13 @@ def check_for_openmp():
     curdir = os.getcwd()
     os.chdir(tmpdir)
     filename = 'test.c'
-    with open(filename, 'w', 0) as file:
+    with open(filename, 'w', buffering=1) as file:
         file.write(omp_test)
     with open(os.devnull, 'w') as fnull:
         result = subprocess.call(['cc', '-fopenmp', filename],  stdout=fnull, stderr=fnull)
     os.chdir(curdir)
     shutil.rmtree(tmpdir)
-    return result
+    return not bool(result)
 
 class clean(distutils.command.clean.clean):
     def run(self):

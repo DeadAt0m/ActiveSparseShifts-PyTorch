@@ -13,6 +13,7 @@ from torch.utils.cpp_extension import CppExtension, CUDAExtension
 from torch.cuda import is_available as cuda_available
 from pathlib import Path
 from setup_utils import check_for_openmp, clean
+import subprocess
 cwd = Path.cwd()
 
 
@@ -30,24 +31,27 @@ if sha != 'Unknown':
 print(f'Building wheel {MODULE_NAME}-{MODULE_VERSION}')
 
 version_path = cwd / MODULE_NAME / 'version.py'
+if version_path.exists():
+    version_path.unlink()
 version_path.touch()
-version_path.write_text(f"__version__ = '{MODULE_VERSION}'\n", mode='a')
-version_path.write_text(f"git_version = {repr(sha)}\n", mode='a')
-version_path.write_text(f"from {MODULE_NAME}.extension import _check_cuda_version\n", mode='a')
-version_path.write_text("if _check_cuda_version() > 0:\n", mode='a')
-version_path.write_text("    cuda = _check_cuda_version()\n", mode='a')
-
+version_path = version_path.open("a")
+version_path.write(f"__version__ = '{MODULE_VERSION}'\n")
+version_path.write(f"git_version = {repr(sha)}\n")
+version_path.write(f"from {MODULE_NAME}.extension import _check_cuda_version\n")
+version_path.write("if _check_cuda_version() > 0:\n")
+version_path.write("    cuda = _check_cuda_version()\n")
+version_path.close()
 
 def get_extensions():
     extensions_dir = cwd / MODULE_NAME / 'csrc'
 
-    sources = extensions_dir.glob('*.cpp')
-    sources += (extensions_dir / 'cpu').glob('*.cpp')
+    sources = list(extensions_dir.glob('*.cpp'))
+    sources += list((extensions_dir / 'cpu').glob('*.cpp'))
 
     extension = CppExtension
 
     define_macros = []
-    extra_compile_args = {'cxx':[f'-std={STD_VERSION}']}
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-Wno-unused-but-set-variable']}
 
     parallel_method = ['-DAT_PARALLEL_NATIVE=1']
     if sys.platform == 'win32':
@@ -62,14 +66,13 @@ def get_extensions():
     if (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1':
         print('Building with CUDA')
         extension = CUDAExtension
-        sources += (extensions_dir / 'cuda').glob('*.cu')
+        sources += list((extensions_dir / 'cuda').glob('*.cu'))
         define_macros += [('WITH_CUDA', None)]
         extra_compile_args['nvcc'] = [] if os.getenv('NVCC_FLAGS', '') == '' else os.getenv('NVCC_FLAGS', '').split(' ')
 
 
     sources = list(map(lambda x: str(x.resolve()), sources))
     include_dirs = [str(extensions_dir)]
-
     ext_modules = [
         extension(
             f'{MODULE_NAME}._C',

@@ -18,7 +18,7 @@
 #endif
 
 namespace shifts {
-    int64_t cuda_version() noexcept {
+    int64_t cuda_version() {
         #ifdef WITH_CUDA
             return CUDA_VERSION;
         #else

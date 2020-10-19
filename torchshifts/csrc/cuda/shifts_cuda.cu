@@ -2,6 +2,8 @@
 #define _SHIFTS_CUDA
 
 #include "shifts_cuda.h"
+#include <ATen/cuda/detail/IndexUtils.cuh>
+#include <ATen/cuda/detail/KernelUtils.h>
 using namespace at::cuda::detail;
 
 namespace {
@@ -136,7 +138,7 @@ __global__ void _shifts_backward_cuda(const int n_threads,
 template <int nD>
 torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
-                                   int padding_mode,
+                                   int64_t padding_mode,
                                    bool active_flag){
     std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
     torch::Tensor output = torch::zeros_like(input, input.options());
@@ -181,7 +183,7 @@ template <int nD>
 std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
-                                                 int padding_mode,
+                                                 int64_t padding_mode,
                                                  bool active_flag) {
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
     torch::Tensor out_grad = torch::zeros_like(grad, grad.options());
@@ -230,7 +232,7 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
 
 torch::Tensor shift1d_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
-                                   int padding_mode,
+                                   int64_t padding_mode,
                                    bool active_flag){
     CHECK_INPUT(input);
     CHECK_INPUT(weights);
@@ -239,7 +241,7 @@ torch::Tensor shift1d_forward_cuda(const torch::Tensor& input,
 
 torch::Tensor shift2d_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
-                                   int padding_mode,
+                                   int64_t padding_mode,
                                    bool active_flag){
     CHECK_INPUT(input);
     CHECK_INPUT(weights);
@@ -248,7 +250,7 @@ torch::Tensor shift2d_forward_cuda(const torch::Tensor& input,
 
 torch::Tensor shift3d_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
-                                   int padding_mode,
+                                   int64_t padding_mode,
                                    bool active_flag){
     CHECK_INPUT(input);
     CHECK_INPUT(weights);
@@ -259,7 +261,7 @@ torch::Tensor shift3d_forward_cuda(const torch::Tensor& input,
 std::vector<torch::Tensor> shift1d_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
-                                                 int padding_mode,
+                                                 int64_t padding_mode,
                                                  bool active_flag){
     CHECK_INPUT(grad); 
     CHECK_INPUT(weights);
@@ -270,18 +272,18 @@ std::vector<torch::Tensor> shift1d_backward_cuda(const torch::Tensor& grad,
 std::vector<torch::Tensor> shift2d_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
-                                                 int padding_mode,
+                                                 int64_t padding_mode,
                                                  bool active_flag){
     CHECK_INPUT(grad);
     CHECK_INPUT(weights);
     CHECK_INPUT(input);
-    return  shiftnd_backward_cuda<2>(grad, weights, input, padding_mode active_flag);     
+    return  shiftnd_backward_cuda<2>(grad, weights, input, padding_mode, active_flag);     
 }
 
 std::vector<torch::Tensor> shift3d_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
-                                                 int padding_mode,
+                                                 int64_t padding_mode,
                                                  bool active_flag){
     CHECK_INPUT(grad);
     CHECK_INPUT(weights);
