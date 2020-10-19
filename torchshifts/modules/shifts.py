@@ -11,7 +11,7 @@ class _Shiftnd(nn.Module):
             in_channels(int) – Number of channels in the input image.
             padding(str) - Padding added to the input during shift.
                            Allowed: ['zeros', 'border', 'periodic', 'reflect', 'symmetric']. Default: 'zeros'.
-            init_stride(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
+            init_shift(float) - Border for uniform initialization of weights(shifts): [-init_stride;init_stride]. Default: 1.
             sparsity_term(float) - Strength of sparsity. Default: 5e-4.
             active_shift(bool) - Compute forward pass via bilinear interpolation. Default: False.
     """
@@ -24,19 +24,19 @@ class _Shiftnd(nn.Module):
         self.padding = paddings_dict[padding]
         self.sparsity_term = sparsity_term
         self.in_channels = in_channels
-        self._init_weights(init_stride)
+        self._init_weights(init_shift)
         self.__active_flag = active_flag
         self.__shift_func = self._init_shift_fn()
 
     def _init_shift_fn(self):
         raise NotImplemented
         
-    def _init_weights(self, init_stride):
+    def _init_weights(self, init_shift):
         self.weight = nn.Parameter(torch.Tensor(self.in_channels, self.dim))
-        self.reset_parameters(init_stride)
+        self.reset_parameters(init_shift)
 
-    def reset_parameters(self, init_stride):
-        self.weight.data.uniform_(-abs(init_stride), abs(init_stride))
+    def reset_parameters(self, init_sshift):
+        self.weight.data.uniform_(-abs(init_shift), abs(init_shift))
     
     def _compute_weight_loss(self):
         return self.sparsity_term * torch.sum(torch.abs(self.weight))

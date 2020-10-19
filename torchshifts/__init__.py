@@ -1,10 +1,6 @@
 import warnings
-from pathlib import path
+from pathlib import Path
 from .extension import _HAS_OPS
-
-
-# from .modules import *
-
 
 try:
     from .version import __version__
@@ -17,3 +13,6 @@ if (not _HAS_OPS and Path(__file__).parent.resolve() == (Path.cwd() / 'torchshif
                'This is not expected to work and may give errors. Please exit the '
                'torchshifts project source and relaunch your python interpreter.')
     warnings.warn(message)
+
+from torchvision.modules import Shift1d, Shift2d, Shift3d
+from torchvision.quantized import quant_mapping

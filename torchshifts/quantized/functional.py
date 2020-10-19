@@ -1,16 +1,16 @@
-from torchshifts.functional import shift_dispatcher
+from torchshifts.functional import shift1d_func, shift2d_func, shift3d_func
 
 def shift1d_quantized(input, weight, padding_mode):
     if not input.is_quantized:
         raise ValueError("Input to 'shift1d_quantized' must be quantized!")
-    return shift_dispatcher(1, input, weight, padding_mode)
+    return shift1d_func(input, weight, padding_mode, False)
 
 def shift2d_quantized(input, weight, padding_mode):
     if not input.is_quantized:
         raise ValueError("Input to 'shift2d_quantized' must be quantized!")
-    return shift_dispatcher(2, input, weight, padding_mode)
+    return shift2d_func(input, weight, padding_mode, False)
 
 def shift3d_quantized(input, weight, padding_mode):
     if not input.is_quantized:
         raise ValueError("Input to 'shift3d_quantized' must be quantized!")
-    return shift_dispatcher(3, input, weight, padding_mode)
+    return shift3d_func(input, weight, padding_mode, False)
