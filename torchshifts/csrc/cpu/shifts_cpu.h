@@ -39,15 +39,3 @@ API_EXPORT std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& 
                                                            const torch::Tensor& input,
                                                            int64_t padding_mode,
                                                            bool active_flag);
-
-API_EXPORT torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
-                                       const torch::Tensor& weights,
-                                       int64_t padding_mode);
-
-API_EXPORT torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
-                                       const torch::Tensor& weights,
-                                       int64_t padding_mode);
-
-API_EXPORT torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
-                                       const torch::Tensor& weights,
-                                       int64_t padding_mode);  

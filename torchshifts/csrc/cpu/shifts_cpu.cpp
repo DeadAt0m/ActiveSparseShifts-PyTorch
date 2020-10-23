@@ -7,7 +7,7 @@
 
 
 
-template <typename scalar_t, int32_t kSpatialDim, bool quantized, bool active>
+template <typename scalar_t, int32_t kSpatialDim, bool active>
 API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Tensor& weights,
                                     torch::Tensor& output, BIPadding padding_mode){
     int64_t sizeN = input.size(0);
@@ -26,20 +26,13 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
     int64_t output_sW = kSpatialDim < 2 ? 0 : output.stride(3);
     int64_t output_sD = kSpatialDim < 3 ? 0 : output.stride(4);
     scalar_t *input_ptr = input.data_ptr<scalar_t>();
-    scalar_t zero_point;
-    int64_t weights_zero_point;
+    scalar_t zero_point = static_cast<scalar_t>(0);;
+    int64_t weights_zero_point = 0;
     scalar_t *output_ptr = output.data_ptr<scalar_t>();
     int64_t *weights_ptr = nullptr;
-    init_weights<scalar_t, int64_t, quantized, active>(weights.data_ptr<scalar_t>(), weights_ptr, (int)weights.numel());
+    init_weights<scalar_t, int64_t, false, active>(weights.data_ptr<scalar_t>(), weights_ptr, (int)weights.numel());
     int64_t weights_sC = weights.stride(0);
     int64_t weights_sS = weights.stride(1);
-    STATIC_IF(quantized){
-        zero_point = static_cast<scalar_t>(input.q_zero_point());
-        weights_zero_point = static_cast<int64_t>(weights.q_zero_point());
-    } STATIC_ELSE {
-        zero_point = static_cast<scalar_t>(0);
-        weights_zero_point = 0;
-    } STATIC_ENDIF
     scalar_t *dweights_ptr = nullptr;
     int64_t dweights_sC = 0;
     int64_t dweights_sS = 0;
@@ -56,12 +49,12 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
                 int64_t j = (index / sizeD) % sizeW;
                 int64_t i = (index / (sizeD*sizeW)) % sizeH;
                 int64_t n = (index / (sizeD*sizeW*sizeH));
-                shift_forward_kernel_nhwdc<scalar_t, int64_t, quantized, active>(input_ptr, output_ptr, weights_ptr, dweights_ptr,
-                                                                                 n, i, j, k, sizeC, sizeH, sizeW, sizeD,
-                                                                                 input_sN, input_sC, input_sH, input_sW, input_sD,
-                                                                                 output_sN, output_sC, output_sH, output_sW, output_sD,
-                                                                                 weights_sC, weights_sS, dweights_sC, dweights_sS,
-                                                                                 zero_point,  weights_zero_point, padding_mode);
+                shift_forward_kernel_nhwdc<scalar_t, int64_t, false, active>(input_ptr, output_ptr, weights_ptr, dweights_ptr,
+                                                                             n, i, j, k, sizeC, sizeH, sizeW, sizeD,
+                                                                             input_sN, input_sC, input_sH, input_sW, input_sD,
+                                                                             output_sN, output_sC, output_sH, output_sW, output_sD,
+                                                                             weights_sC, weights_sS, dweights_sC, dweights_sS,
+                                                                             zero_point,  weights_zero_point, padding_mode);
             }
         });
     } else
@@ -73,12 +66,12 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
                 int64_t i = (index / (sizeD*sizeW)) % sizeH;
                 int64_t c = (index / (sizeD*sizeW*sizeH)) % sizeC;
                 int64_t n = (index / (sizeD*sizeW*sizeH*sizeC));
-                shift_forward_kernel_nchwd<scalar_t, int64_t, quantized, active>(input_ptr, output_ptr, weights_ptr, dweights_ptr,
-                                                                                 n, c, i, j, k, sizeH, sizeW, sizeD,
-                                                                                 input_sN, input_sC, input_sH, input_sW, input_sD,
-                                                                                 output_sN, output_sC, output_sH, output_sW, output_sD,
-                                                                                 weights_sC, weights_sS, dweights_sC, dweights_sS,
-                                                                                 zero_point,  weights_zero_point, padding_mode);
+                shift_forward_kernel_nchwd<scalar_t, int64_t, false, active>(input_ptr, output_ptr, weights_ptr, dweights_ptr,
+                                                                             n, c, i, j, k, sizeH, sizeW, sizeD,
+                                                                             input_sN, input_sC, input_sH, input_sW, input_sD,
+                                                                             output_sN, output_sC, output_sH, output_sW, output_sD,
+                                                                             weights_sC, weights_sS, dweights_sC, dweights_sS,
+                                                                             zero_point,  weights_zero_point, padding_mode);
             }
         });
     }
@@ -183,40 +176,16 @@ torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
 
     if (active_flag){
             AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
-                _shifts_forward_cpu<scalar_t, nD, false, true>(input, weights, output,
-                                                               static_cast<BIPadding>(padding_mode));
+                _shifts_forward_cpu<scalar_t, nD, true>(input, weights, output,
+                                                        static_cast<BIPadding>(padding_mode));
             });   
     }
    else {
              AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
-                _shifts_forward_cpu<scalar_t, nD, false, false>(input, weights, output,
-                                                                static_cast<BIPadding>(padding_mode));
+                _shifts_forward_cpu<scalar_t, nD, false>(input, weights, output,
+                                                         static_cast<BIPadding>(padding_mode));
             }); 
     }
-    return output;
-}
-
-
-template <int nD>
-torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int64_t padding_mode){
-    std::string name = "shift"+std::to_string(nD)+"d_cpu";
-    torch::Tensor output;
-    if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
-        output = at::_empty_affine_quantized(input.sizes(), input.options().memory_format(input.suggest_memory_format()),
-                                             input.q_scale(), input.q_zero_point(), c10::nullopt);
-    }
-    else {
-        output = at::_empty_affine_quantized(input.sizes(), input.options(), input.q_scale(), input.q_zero_point());
-    }
-
-    AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-            _shifts_forward_cpu<scalar_t, nD, true, false>(input, weights, output,
-                                                           static_cast<BIPadding>(padding_mode));
-        }); 
-    
-    
     return output;
 }
 
@@ -295,22 +264,6 @@ std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
     return  shiftnd_backward_cpu<3>(grad, weights, input, padding_mode, active_flag);                                       
 }
 
-torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int64_t padding_mode){
-    return q_shiftnd_cpu<1>(input, weights, padding_mode);                    
-}
 
-torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int64_t padding_mode){
-    return q_shiftnd_cpu<2>(input, weights, padding_mode);                    
-}
-
-torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            int64_t padding_mode){
-    return q_shiftnd_cpu<3>(input, weights, padding_mode);                    
-}
 
 #endif
