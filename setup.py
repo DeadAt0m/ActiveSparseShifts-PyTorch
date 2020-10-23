@@ -46,7 +46,7 @@ def get_extensions():
     extensions_dir = cwd / MODULE_NAME / 'csrc'
 
     sources = list(extensions_dir.glob('*.cpp'))
-    sources += list((extensions_dir / 'cpu').glob('*.cpp'))
+    sources += list((extensions_dir / 'cpu').glob('*.cpp')) + list((extensions_dir / 'quantized').glob('*.cpp'))
 
     extension = CppExtension
 

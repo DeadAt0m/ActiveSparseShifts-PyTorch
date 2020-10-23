@@ -1,7 +1,7 @@
 #ifndef _SHIFTS_CPU
 #define _SHIFTS_CPU
 
-#include "shifts_cpu.h"
+#include "shifts_quantized.h"
 #include "../kernels/shifts_kernels.h"
 
 
@@ -89,8 +89,8 @@ torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
     }
 
     AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-            _shifts_forward_cpu<scalar_t, nD>(input, weights, output,
-                                              static_cast<BIPadding>(padding_mode));
+            _q_shifts_cpu<scalar_t, nD>(input, weights, output,
+                                        static_cast<BIPadding>(padding_mode));
         }); 
     return output;
 }

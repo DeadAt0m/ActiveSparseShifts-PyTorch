@@ -1,5 +1,6 @@
 #pragma once
 #include "cpu/shifts_cpu.h"
+#include "quantized/shifts_quantized.h"
 #ifdef WITH_CUDA
     #include "cuda/shifts_cuda.h"
 #endif
