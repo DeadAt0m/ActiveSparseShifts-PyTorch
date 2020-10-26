@@ -78,7 +78,7 @@ template <int nD>
 torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
                             int64_t padding_mode){
-    std::string name = "shift"+std::to_string(nD)+"d_cpu";
+    std::string name = "q_shift"+std::to_string(nD)+"d_cpu";
     torch::Tensor output;
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
         output = at::_empty_affine_quantized(input.sizes(), input.options().memory_format(input.suggest_memory_format()),
