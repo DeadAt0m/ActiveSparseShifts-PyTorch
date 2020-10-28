@@ -63,7 +63,6 @@ Additional options for shift layer:
 
 ## Additionals:
 1. Pytorch Quantization: SSL shifts can be used in quantized pipeline!
-   
    Shifts do not needed the activation tracking and so model with shift module can be easily converted by following:
     ```
     from torchshifts import quant_mapping
@@ -75,5 +74,4 @@ Additional options for shift layer:
 
 ## TO DO:
   1. Add unit tests(yes I still make testing in some strange manners)
-  2. Migrate on torch 1.7 when it became ready!
   3. Make more weights initialization schemes!
