@@ -11,6 +11,7 @@ from setuptools import setup, find_packages
 from torch.utils.cpp_extension import BuildExtension, CUDA_HOME
 from torch.utils.cpp_extension import CppExtension, CUDAExtension
 from torch.cuda import is_available as cuda_available
+from torch import version as torch_version
 from pathlib import Path
 from setup_utils import check_for_openmp, clean
 import subprocess
@@ -51,7 +52,7 @@ def get_extensions():
     extension = CppExtension
 
     define_macros = []
-    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-Wno-unused-but-set-variable']}
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}']}
 
     parallel_method = ['-DAT_PARALLEL_NATIVE=1']
     if sys.platform == 'win32':
@@ -59,6 +60,7 @@ def get_extensions():
         extra_compile_args['cxx'].append('/MP')
         define_macros += [('TORCHSHIFTS_EXPORTS', None)]
     if sys.platform == 'linux':
+        extra_compile_args['cxx'].append('-Wno-unused-but-set-variable')
         if check_for_openmp():
             parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
     extra_compile_args['cxx'].extend(parallel_method)
@@ -69,7 +71,7 @@ def get_extensions():
         sources += list((extensions_dir / 'cuda').glob('*.cu'))
         define_macros += [('WITH_CUDA', None)]
         extra_compile_args['nvcc'] = [] if os.getenv('NVCC_FLAGS', '') == '' else os.getenv('NVCC_FLAGS', '').split(' ')
-
+  
 
     sources = list(map(lambda x: str(x.resolve()), sources))
     include_dirs = [str(extensions_dir)]
