@@ -43,6 +43,7 @@ It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4
 
 ## Instalation:
 1. Clone this repo and ```cd ActiveSparseShifts-PyTorch```
+(1b). If you compile with CUDA, please pass path to nvcc to CUDA_HOME env variable!
 2. Run ```python setup.py install``` 
 
     
