@@ -2,7 +2,7 @@ PyTorch implementation of Sparse Shift Layer(SSL) for 3D, 4D and 5D tensors  fro
 for Image Classification" (https://arxiv.org/pdf/1903.05285.pdf) 
 
 (**I am not the author** any of mentioned articles, I just implement this for my own purposes)
-
+## !NOW FOR PYTORCH 1.7 ONLY!
 
 ## Theory
 
@@ -39,7 +39,7 @@ It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4
 
 ## Requirements:
     C++17 must be supported by your compiler!
-    PyTorch >= 1.6.0; 
+    PyTorch >= 1.7.0; 
 
 ## Instalation:
 1. Clone this repo and ```cd ActiveSparseShifts-PyTorch```

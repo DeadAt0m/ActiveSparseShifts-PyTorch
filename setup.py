@@ -1,9 +1,9 @@
 MODULE_NAME = 'torchshifts' 
-MODULE_VERSION = '2.1'
+MODULE_VERSION = '2.3'
 #DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STD_VERSION = "c++17"
-PYTORCH_VERSION = "1.6"
+PYTORCH_VERSION = "1.7"
 
 
 import sys, os, copy

@@ -66,8 +66,6 @@ class Shift3d(shifts.Shift3d):
         qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
     
-if torch.__version__ >= '1.7':
-    quant_mapping = copy.deepcopy(torch.quantization.quantization_mappings.get_static_quant_module_mappings())
-else:
-    quant_mapping = copy.deepcopy(torch.quantization.default_mappings.DEFAULT_MODULE_MAPPING)
+
+quant_mapping = copy.deepcopy(torch.quantization.quantization_mappings.get_static_quant_module_mappings())
 quant_mapping.update({shifts.Shift1d: Shift1d, shifts.Shift2d: Shift2d, shifts.Shift3d: Shift3d})
