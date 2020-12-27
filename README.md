@@ -57,19 +57,33 @@ Example:
 Additional options for shift layer:
 
     padding(str) - Padding for filling empty values.
-                   Allowed: ['zeros', 'border', 'periodic', 'reflect',          'symmetric']. Default: 'zeros'.
+                   Allowed: ['zeros', 'border', 'periodic', 'reflect', 'symmetric']. Default: 'zeros'.
     init_shift(float) - Border for uniform initialization of weights(shifts): [-init_shift; init_shift]. Default: 1.
     sparsity_term(float) - Strength of sparsity. Default: 5e-4.
     active_flag(bool) - Enable Active Shift instead of SSL. Default: False
+    emulate_dw(dict) - Just pass params of depthwise conv, that you trying replace with shift layer.
+                               It applies a heuristic and try to emulate their properties(including output shape)
+    init_thumb_rule(int) - Type of thumb rule for shifts initialization. Allowed: Type 1(default): uniform(-init_shift, init_shift),
+                                                                                  Type 2: uniform(0,init_shift) * random_sign
+                                                                                  
+                                                                                
 
 ## Additionals:
-1. Pytorch Quantization: SSL shifts can be used in quantized pipeline!
+1. Depthwise Convolution Emulation: 
+   Provides a heuristic rules for emulation of DepthWise Convolution via Shift layer
+   in terms of output shape and shift kernel behaviour.
+        
+   a) This directly influence on proper shift param initialization.
+   b) Output shape via cutting the output and pooling(depending on stride)
+   c) Automaticaly using AveragePooling for emulation stride > 1
+
+2. Pytorch Quantization: SSL shifts can be used in quantized pipeline!
    Shifts do not needed the activation tracking and so model with shift module can be easily converted by following:
     ```
     from torchshifts import quant_mapping
     torch.quantization.convert(<model_with_Shift_module>, ..., mapping=quant_mapping)
     ```
-2. Pytorch JIT: We support it out-of-box:
+3. Pytorch JIT: We support it out-of-box:
    ``` torch.jit.trace_module(<model_with_Shift_module>) ```
 
 

@@ -1,5 +1,5 @@
 MODULE_NAME = 'torchshifts' 
-MODULE_VERSION = '2.3'
+MODULE_VERSION = '2.5'
 #DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STD_VERSION = "c++17"

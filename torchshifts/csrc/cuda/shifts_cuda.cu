@@ -26,6 +26,7 @@ __global__ void _shifts_cuda(const idx_t n_threads,
                              TensorInfo<scalar_t, idx_t> input,
                              TensorInfo<idx_t, idx_t> iweights,
                              TensorInfo<scalar_t, idx_t> dweights,
+                             TensorInfo<idx_t, idx_t> borders,
                              TensorInfo<scalar_t, idx_t> output,
                              const BIPadding padding_mode,  bool active){
     idx_t sizeC = input.sizes[1];
@@ -50,7 +51,15 @@ __global__ void _shifts_cuda(const idx_t n_threads,
     scalar_t *dweights_ptr = dweights.data;
     idx_t dweights_sC = dweights.strides[0];
     idx_t dweights_sS = dweights.strides[1];
-
+    
+    idx_t *borders_data = borders.data;
+    idx_t i_left_border = MAX(static_cast<idx_t>(0), borders_data[0]);
+    idx_t i_right_border = MIN(sizeH, borders_data[1]);
+    idx_t j_left_border = kSpatialDim < 2 ? 0 : MAX(static_cast<idx_t>(0), borders_data[2]);
+    idx_t j_right_border = kSpatialDim < 2 ? 1 : MIN(sizeW, borders_data[3]);
+    idx_t k_left_border =  kSpatialDim < 3 ? 0 : MAX(static_cast<idx_t>(0), borders_data[4]);
+    idx_t k_right_border =  kSpatialDim < 3 ? 1 : MIN(sizeD, borders_data[5]);
+    
     CUDA_KERNEL_LOOP_TYPE(index, n_threads, idx_t){
         const idx_t k = index % sizeD;
         const idx_t j = (index / sizeD) % sizeW;
@@ -62,6 +71,8 @@ __global__ void _shifts_cuda(const idx_t n_threads,
                                                     input_sN, input_sC, input_sH, input_sW, input_sD,
                                                     output_sN, output_sC, output_sH, output_sW, output_sD,
                                                     weights_sC, weights_sS, dweights_sC, dweights_sS,
+                                                    i_left_border, j_left_border, k_left_border,
+                                                    i_right_border, j_right_border, k_right_border,
                                                     padding_mode, active);
          
     }
@@ -73,7 +84,8 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
                                       TensorInfo<scalar_t, idx_t> grad_input,
                                       TensorInfo<idx_t, idx_t> iweights,
                                       TensorInfo<scalar_t, idx_t> dweights,
-                                      TensorInfo<scalar_t, idx_t> input, 
+                                      TensorInfo<scalar_t, idx_t> input,
+                                      TensorInfo<idx_t, idx_t> borders,
                                       TensorInfo<scalar_t, idx_t> grad_output,
                                       TensorInfo<scalar_t, idx_t> grad_weights,
                                       const BIPadding padding_mode, bool active)
@@ -109,6 +121,16 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
     scalar_t *dweights_ptr = dweights.data;
     idx_t dweights_sC = dweights.strides[0];
     idx_t dweights_sS = dweights.strides[1];
+    
+
+    idx_t *borders_data = borders.data;
+    idx_t i_left_border = MAX(static_cast<idx_t>(0), borders_data[0]);
+    idx_t i_right_border = MIN(input.sizes[2], borders_data[1]);
+    idx_t j_left_border = kSpatialDim < 2 ? 0 : MAX(static_cast<idx_t>(0), borders_data[2]);
+    idx_t j_right_border = kSpatialDim < 2 ? 1 : MIN(input.sizes[3], borders_data[3]);
+    idx_t k_left_border = kSpatialDim < 3 ? 0 : MAX(static_cast<idx_t>(0), borders_data[4]);
+    idx_t k_right_border = kSpatialDim < 3 ? 1 : MIN(input.sizes[4], borders_data[5]);
+    
 
     CUDA_KERNEL_LOOP_TYPE(index, n_threads, idx_t){
         const idx_t k = index % sizeD;
@@ -123,6 +145,8 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
                                                      input_sN, input_sC, input_sH, input_sW, input_sD,
                                                      grad_output_sN, grad_output_sC, grad_output_sH, grad_output_sW, grad_output_sD,
                                                      weights_sC, weights_sS, dweights_sC, dweights_sS, grad_weights_sC, grad_weights_sS,
+                                                     i_left_border, j_left_border, k_left_border,
+                                                     i_right_border, j_right_border, k_right_border,
                                                      padding_mode, active);
     }
 }
@@ -133,6 +157,8 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
 template <int nD>
 torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
+                                   const torch::Tensor& borders,
+                                   const std::vector<int64_t>& new_size,
                                    int64_t padding_mode,
                                    bool active_flag){
     std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
@@ -146,7 +172,7 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
     at::cuda::CUDAGuard device_guard(input.device());
     
     
-    torch::Tensor output = torch::zeros(input.sizes(), input.options());
+    torch::Tensor output = torch::zeros(new_size, input.options());
     
     torch::Tensor iweights = (active_flag?torch::floor(weights):torch::round(weights));
     torch::Tensor dweights = torch::empty_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
@@ -158,6 +184,7 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
                          canUse32BitIndexMath(dweights) && canUse32BitIndexMath(output);
                          
     iweights = int32bit_cond?iweights.to(torch::kInt):iweights.to(torch::kLong);
+    torch::Tensor _borders = int32bit_cond?borders.to(torch::kInt):borders.to(torch::kLong);
     
     int64_t N = input.size(0);
     int64_t C = input.size(1);
@@ -180,6 +207,7 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
                 getTensorInfo<scalar_t, int>(input),
                 getTensorInfo<int, int>(iweights),
                 getTensorInfo<scalar_t, int>(dweights),
+                getTensorInfo<int, int>(_borders),
                 getTensorInfo<scalar_t, int>(output),
                 static_cast<BIPadding>(padding_mode), 
                 active_flag);
@@ -191,6 +219,7 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
             getTensorInfo<scalar_t, int64_t>(input),
             getTensorInfo<int64_t, int64_t>(iweights),
             getTensorInfo<scalar_t, int64_t>(dweights),
+            getTensorInfo<int64_t, int64_t>(_borders),
             getTensorInfo<scalar_t, int64_t>(output),
             static_cast<BIPadding>(padding_mode), 
             active_flag);
@@ -205,6 +234,7 @@ template <int nD>
 std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
+                                                 const torch::Tensor& borders,
                                                  int64_t padding_mode,
                                                  bool active_flag) {
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
@@ -221,7 +251,7 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     at::cuda::CUDAGuard device_guard(grad.device());
     
 
-    torch::Tensor out_grad = torch::zeros_like(grad, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    torch::Tensor out_grad = torch::zeros_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor weights_grad = torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     
     torch::Tensor iweights = (active_flag?torch::floor(weights):torch::round(weights));
@@ -233,6 +263,7 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
                          canUse32BitIndexMath(out_grad) && canUse32BitIndexMath(weights_grad);
     
     iweights = int32bit_cond?iweights.to(torch::kInt):iweights.to(torch::kLong);
+    torch::Tensor _borders = int32bit_cond?borders.to(torch::kInt):borders.to(torch::kLong);
   
     int64_t N = grad.size(0);
     int64_t C = grad.size(1);
@@ -255,6 +286,7 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
             getTensorInfo<int, int>(iweights),
             getTensorInfo<scalar_t, int>(dweights),
             getTensorInfo<scalar_t, int>(input),
+            getTensorInfo<int, int>(_borders),
             getTensorInfo<scalar_t, int>(out_grad),
             getTensorInfo<scalar_t, int>(weights_grad),
             static_cast<BIPadding>(padding_mode), 
@@ -268,6 +300,7 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
             getTensorInfo<int64_t, int64_t>(iweights),
             getTensorInfo<scalar_t, int64_t>(dweights),
             getTensorInfo<scalar_t, int64_t>(input),
+            getTensorInfo<int64_t, int64_t>(_borders),
             getTensorInfo<scalar_t, int64_t>(out_grad),
             getTensorInfo<scalar_t, int64_t>(weights_grad),
             static_cast<BIPadding>(padding_mode), 
@@ -282,48 +315,57 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
 
 torch::Tensor shift1d_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
+                                   const torch::Tensor& borders,
+                                   const std::vector<int64_t>& new_size,
                                    int64_t padding_mode,
                                    bool active_flag){
-    return shiftnd_forward_cuda<1>(input, weights, padding_mode, active_flag);                    
+    return shiftnd_forward_cuda<1>(input, weights, borders, new_size, padding_mode, active_flag);                    
 }
 
 torch::Tensor shift2d_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
+                                   const torch::Tensor& borders,
+                                   const std::vector<int64_t>& new_size,
                                    int64_t padding_mode,
                                    bool active_flag){
-    return shiftnd_forward_cuda<2>(input, weights, padding_mode, active_flag);                     
+    return shiftnd_forward_cuda<2>(input, weights, borders, new_size, padding_mode, active_flag);                     
 }
 
 torch::Tensor shift3d_forward_cuda(const torch::Tensor& input,
                                    const torch::Tensor& weights,
+                                   const torch::Tensor& borders,
+                                   const std::vector<int64_t>& new_size,
                                    int64_t padding_mode,
                                    bool active_flag){
-    return shiftnd_forward_cuda<3>(input, weights, padding_mode, active_flag);                     
+    return shiftnd_forward_cuda<3>(input, weights, borders, new_size, padding_mode, active_flag);                     
 }
 
 
 std::vector<torch::Tensor> shift1d_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
+                                                 const torch::Tensor& borders,
                                                  int64_t padding_mode,
                                                  bool active_flag){
-    return  shiftnd_backward_cuda<1>(grad, weights, input, padding_mode, active_flag);                                        
+    return  shiftnd_backward_cuda<1>(grad, weights, input, borders, padding_mode, active_flag);                                        
 }
 
 std::vector<torch::Tensor> shift2d_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
+                                                 const torch::Tensor& borders,
                                                  int64_t padding_mode,
                                                  bool active_flag){
-    return  shiftnd_backward_cuda<2>(grad, weights, input, padding_mode, active_flag);     
+    return  shiftnd_backward_cuda<2>(grad, weights, input, borders, padding_mode, active_flag);     
 }
 
 std::vector<torch::Tensor> shift3d_backward_cuda(const torch::Tensor& grad,
                                                  const torch::Tensor& weights,
                                                  const torch::Tensor& input,
+                                                 const torch::Tensor& borders,
                                                  int64_t padding_mode,
                                                  bool active_flag){
-    return  shiftnd_backward_cuda<3>(grad, weights, input, padding_mode, active_flag);                                        
+    return  shiftnd_backward_cuda<3>(grad, weights, input, borders, padding_mode, active_flag);                                        
 }
 
 #endif

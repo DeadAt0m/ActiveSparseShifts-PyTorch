@@ -6,30 +6,38 @@
 
 API_EXPORT torch::Tensor shift1d_forward_cpu(const torch::Tensor& input,
                                              const torch::Tensor& weights,
+                                             const torch::Tensor& borders,
+                                             const std::vector<int64_t>& new_size,
                                              int64_t padding_mode,
                                              bool active_flag);
 
 
 API_EXPORT torch::Tensor shift2d_forward_cpu(const torch::Tensor& input,
                                              const torch::Tensor& weights,
+                                             const torch::Tensor& borders,
+                                             const std::vector<int64_t>& new_size,
                                              int64_t padding_mode,
                                              bool active_flag);
 
 
 API_EXPORT torch::Tensor shift3d_forward_cpu(const torch::Tensor& input,
                                              const torch::Tensor& weights,
+                                             const torch::Tensor& borders,
+                                             const std::vector<int64_t>& new_size,
                                              int64_t padding_mode,
                                              bool active_flag);
 
 API_EXPORT std::vector<torch::Tensor> shift1d_backward_cpu(const torch::Tensor& grad,
                                                            const torch::Tensor& weights,
                                                            const torch::Tensor& input,
+                                                           const torch::Tensor& borders,
                                                            int64_t padding_mode,
                                                            bool active_flag);
 
 API_EXPORT std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& grad,
                                                            const torch::Tensor& weights,
                                                            const torch::Tensor& input,
+                                                           const torch::Tensor& borders,
                                                            int64_t padding_mode,
                                                            bool active_flag);
 
@@ -37,5 +45,6 @@ API_EXPORT std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& 
 API_EXPORT std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
                                                            const torch::Tensor& weights,
                                                            const torch::Tensor& input,
+                                                           const torch::Tensor& borders,
                                                            int64_t padding_mode,
                                                            bool active_flag);

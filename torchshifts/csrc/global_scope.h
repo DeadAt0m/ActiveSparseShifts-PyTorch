@@ -21,6 +21,8 @@
 #ifdef _SHIFTS_CPU
     #define ROUND(a) (std::round(a))
     #define FLOOR(a) (std::floor(a))
+    #define MIN(a,b) (std::min(a,b))
+    #define MAX(a,b) (std::max(a,b))
     #define ABS(a) (std::abs(a))
     #define ADD(a,b) (*a += b)
     #define API_INLINE inline
@@ -29,6 +31,8 @@
     #include <THC/THCAtomics.cuh>
     #define ROUND(a) (::round(a))
     #define FLOOR(a) (::floor(a))
+    #define MIN(a,b) (::min(a,b))
+    #define MAX(a,b) (::max(a,b))
     #define ABS(a) (::abs(a))
     #define ADD(a,b) (gpuAtomicAdd(a,b))
     #define API_INLINE __device__ __forceinline__

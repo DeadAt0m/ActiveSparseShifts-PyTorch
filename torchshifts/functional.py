@@ -1,10 +1,12 @@
 import torch
 from .extension import _assert_has_ops
+from typing import Optional
 
 Tensor = torch.Tensor
 
 def shift1d_func(input: Tensor, weights: Tensor,
-                 padding_mode: int, active_flag: bool) -> Tensor:
+                 padding_mode: int, active_flag: bool,
+                 borders: Optional[Tensor] = None) -> Tensor:
     """
         Performs shift operation on 1D tensor
         Arguments:
@@ -17,6 +19,7 @@ def shift1d_func(input: Tensor, weights: Tensor,
                                                                                        4 - symmetric
             active_flag (bool): if true - the active shift(via billinear interpolation) will used on forward pass.
                                 This option has no effect if input is Quantized tensor.
+            borders (Tensor[1,2]): dim x (left_border, right_border) output tensor will be cut off proportional to borders 
         Returns:
             output (Tensor[N, C, H])
     """
@@ -26,11 +29,16 @@ def shift1d_func(input: Tensor, weights: Tensor,
     assert weights.shape[-1] == 1, f'shift1d_func(): expected [n_channels,1] tensor as weight, but it is shape is {weights.shape}'
     assert input.shape[1] == weights.shape[0],  f'shift1d_func(): expected that input and weight have equal number of channels, but input have {input.shape[1]} and weight have {weights.shape[0]} channels.'
     assert input.device == weights.device, f'shift1d_func(): expected input and weights to be on same device, but input is  on {input.device} and weights is on {weights.device}'
-    return torch.ops.torchshifts.shift1d(input, weights, padding_mode, active_flag)
+    if borders is not None:
+        assert (len(borders.shape) == 2) and (borders.shape[1] == 2) and (borders.shape[0] == 1), f'borders must have shape [1, 2]'
+    else:
+        borders = torch.Tensor()
+    return torch.ops.torchshifts.shift1d(input, weights, borders, padding_mode, active_flag)
 
 
 def shift2d_func(input: Tensor, weights: Tensor,
-                 padding_mode: int, active_flag: bool) -> Tensor:
+                 padding_mode: int, active_flag: bool,
+                 borders: Optional[Tensor] = None) -> Tensor:
     """
         Performs shift operation on 2D tensor
         Arguments:
@@ -43,6 +51,7 @@ def shift2d_func(input: Tensor, weights: Tensor,
                                                                                        4 - symmetric
             active_flag (bool): if true - the active shift(via billinear interpolation) will used on forward pass.
                                 This option has no effect if input is Quantized tensor.
+            borders (Tensor[2,2]): dim x (left_border, right_border) output tensor will be cut off proportional to borders 
         Returns:
             output (Tensor[N, C, H. W])
     """
@@ -52,10 +61,15 @@ def shift2d_func(input: Tensor, weights: Tensor,
     assert weights.shape[-1] == 2, f'shift2d_func(): expected [n_channels,2] tensor as weight, but it is shape is {weights.shape}'
     assert input.shape[1] == weights.shape[0],  f'shift2d_func(): expected that input and weight have equal number of channels, but input have {input.shape[1]} and weight have {weights.shape[0]} channels.'
     assert input.device == weights.device, f'shift2d_func(): expected input and weights to be on same device, but input is  on {input.device} and weights is on {weights.device}'
-    return torch.ops.torchshifts.shift2d(input, weights, padding_mode, active_flag)
+    if borders is not None:
+        assert (len(borders.shape) == 2) and (borders.shape[1] == 2) and (borders.shape[0] == 2), f'borders must have shape [2, 2]'
+    else:
+        borders = torch.Tensor()
+    return torch.ops.torchshifts.shift2d(input, weights, borders, padding_mode, active_flag)
 
 def shift3d_func(input: Tensor, weights: Tensor,
-                 padding_mode: int, active_flag: bool) -> Tensor:
+                 padding_mode: int, active_flag: bool,
+                 borders: Optional[Tensor] = None) -> Tensor:
     """
         Performs shift operation on 3D tensor
         Arguments:
@@ -68,6 +82,7 @@ def shift3d_func(input: Tensor, weights: Tensor,
                                                                                        4 - symmetric
             active_flag (bool): if true - the active shift(via billinear interpolation) will used on forward pass.
                                 This option has no effect if input is Quantized tensor.
+            borders (Tensor[3,2]): dim x (left_border, right_border) output tensor will be cut off proportional to borders 
         Returns:
             output (Tensor[N, C, H, W, D])
     """
@@ -77,5 +92,8 @@ def shift3d_func(input: Tensor, weights: Tensor,
     assert weights.shape[-1] == 3, f'shift3d_func(): expected [n_channels,3] tensor as weight, but it is shape is {weights.shape}'
     assert input.shape[1] == weights.shape[0],  f'shift3d_func(): expected that input and weight have equal number of channels, but input have {input.shape[1]} and weight have {weights.shape[0]} channels.'
     assert input.device == weights.device, f'shift3d_func(): expected input and weights to be on same device, but input is  on {input.device} and weights is on {weights.device}'
-    return torch.ops.torchshifts.shift3d(input, weights, padding_mode, active_flag)
-
+    if borders is not None:
+        assert (len(borders.shape) == 2) and (borders.shape[1] == 2) and (borders.shape[0] == 3), f'borders must have shape [3, 2]'
+    else:
+        borders = torch.Tensor()
+    return torch.ops.torchshifts.shift3d(input, weights, borders, padding_mode, active_flag)

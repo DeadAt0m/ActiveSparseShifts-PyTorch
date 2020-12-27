@@ -9,6 +9,7 @@
 
 template <typename scalar_t, int32_t kSpatialDim>
 API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
+                              const torch::Tensor& borders,
                               torch::Tensor& output,
                               int64_t weights_zero_point,
                               BIPadding padding_mode){
@@ -33,6 +34,18 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
     int64_t *weights_ptr = weights.data_ptr<int64_t>();
     int64_t weights_sC = weights.stride(0);
     int64_t weights_sS = weights.stride(1);
+    
+    
+    
+    int64_t *borders_data = borders.data_ptr<int64_t>();
+    int64_t i_left_border = MAX(static_cast<int64_t>(0), borders_data[0]);
+    int64_t i_right_border = MIN(sizeH, borders_data[1]);
+    int64_t j_left_border = kSpatialDim < 2 ? 0 : MAX(static_cast<int64_t>(0), borders_data[2]);
+    int64_t j_right_border = kSpatialDim < 2 ? 1 : MIN(sizeW, borders_data[3]);
+    int64_t k_left_border =  kSpatialDim < 3 ? 0 : MAX(static_cast<int64_t>(0), borders_data[4]);
+    int64_t k_right_border =  kSpatialDim < 3 ? 1 : MIN(sizeD, borders_data[5]);
+    
+ 
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d))
     {// Path for NDHWC
         at::parallel_for(0, sizeN*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
@@ -46,6 +59,8 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
                                                                 input_sN, input_sC, input_sH, input_sW, input_sD,
                                                                 output_sN, output_sC, output_sH, output_sW, output_sD,
                                                                 weights_sC, weights_sS,
+                                                                i_left_border, j_left_border, k_left_border,
+                                                                i_right_border, j_right_border, k_right_border,
                                                                 zero_point,  weights_zero_point, padding_mode);
             }
         });
@@ -63,6 +78,8 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
                                                                 input_sN, input_sC, input_sH, input_sW, input_sD,
                                                                 output_sN, output_sC, output_sH, output_sW, output_sD,
                                                                 weights_sC, weights_sS,
+                                                                i_left_border, j_left_border, k_left_border,
+                                                                i_right_border, j_right_border, k_right_border,
                                                                 zero_point,  weights_zero_point, padding_mode);
             }
         });
@@ -70,26 +87,32 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
 }
 
 
+
+
+
+
 template <int nD>
 torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
+                            const torch::Tensor& borders,
+                            const std::vector<int64_t>& new_size,
                             int64_t padding_mode){
     std::string name = "q_shift"+std::to_string(nD)+"d_cpu";
     torch::Tensor output;
     int64_t weights_zero_point = static_cast<int64_t>(weights.q_zero_point());
     torch::Tensor iweights = weights.int_repr().to(torch::kLong);
     
-    
+
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
-        output = at::_empty_affine_quantized(input.sizes(), input.options().memory_format(input.suggest_memory_format()),
+        output = at::_empty_affine_quantized(new_size, input.options().memory_format(input.suggest_memory_format()),
                                              input.q_scale(), input.q_zero_point(), c10::nullopt);
     }
     else {
-        output = at::_empty_affine_quantized(input.sizes(), input.options(), input.q_scale(), input.q_zero_point());
+        output = at::_empty_affine_quantized(new_size, input.options(), input.q_scale(), input.q_zero_point());
     }
 
     AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-            _q_shifts_cpu<scalar_t, nD>(input, iweights, output, weights_zero_point,
+            _q_shifts_cpu<scalar_t, nD>(input, iweights, borders, output, weights_zero_point,
                                         static_cast<BIPadding>(padding_mode));
     }); 
     return output;
@@ -100,20 +123,26 @@ torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
 
 torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
+                            const torch::Tensor& borders,
+                            const std::vector<int64_t>& new_size,
                             int64_t padding_mode){
-    return q_shiftnd_cpu<1>(input, weights, padding_mode);                    
+    return q_shiftnd_cpu<1>(input, weights, borders, new_size, padding_mode);                    
 }
 
 torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
+                            const torch::Tensor& borders,
+                            const std::vector<int64_t>& new_size,
                             int64_t padding_mode){
-    return q_shiftnd_cpu<2>(input, weights, padding_mode);                    
+    return q_shiftnd_cpu<2>(input, weights, borders, new_size, padding_mode);                    
 }
 
 torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
                             const torch::Tensor& weights,
+                            const torch::Tensor& borders,
+                            const std::vector<int64_t>& new_size,
                             int64_t padding_mode){
-    return q_shiftnd_cpu<3>(input, weights, padding_mode);                    
+    return q_shiftnd_cpu<3>(input, weights, borders, new_size, padding_mode);                    
 }
 
 #endif

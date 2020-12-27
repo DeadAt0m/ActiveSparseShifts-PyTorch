@@ -17,7 +17,7 @@ class Shift1d(shifts.Shift1d):
         self.qweight = quantize_shift_weights(self.weight.float())
 
     def forward(self, input):
-        return shift1d_quantized(input, self.qweight, self.padding)
+        return self._reduction_fn(shift1d_quantized(input, self.qweight, self.padding, self.cut_borders))
 
     def _get_name(self):
         return 'QuantizedShift1D'
@@ -25,6 +25,8 @@ class Shift1d(shifts.Shift1d):
     @staticmethod
     def from_float(mod):
         qshift = Shift1d(mod.in_channels, rp_dict[mod.padding])
+        qshift.cut_borders = mod.cut_borders
+        qshift._reduction_fn = mod._reduction_fn
         qshift.weight = mod.weight
         qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
@@ -36,7 +38,7 @@ class Shift2d(shifts.Shift2d):
         self.qweight = quantize_shift_weights(self.weight.float())
 
     def forward(self, input):
-        return shift2d_quantized(input, self.qweight, self.padding)
+        return self._reduction_fn(self.shift2d_quantized(input, self.qweight, self.padding, self.cut_borders))
 
     def _get_name(self):
         return 'QuantizedShift2D'
@@ -44,6 +46,8 @@ class Shift2d(shifts.Shift2d):
     @staticmethod
     def from_float(mod):
         qshift = Shift2d(mod.in_channels, rp_dict[mod.padding])
+        qshift.cut_borders = mod.cut_borders
+        qshift._reduction_fn = mod._reduction_fn
         qshift.weight = mod.weight
         qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
@@ -54,7 +58,7 @@ class Shift3d(shifts.Shift3d):
         self.qweight = quantize_shift_weights(self.weight.float())
 
     def forward(self, input):
-        return shift3d_quantized(input, self.qweight, self.padding)
+        return self._reduction_fn(shift3d_quantized(input, self.qweight, self.padding, self.cut_borders))
 
     def _get_name(self):
         return 'QuantizedShift3D'
@@ -62,6 +66,8 @@ class Shift3d(shifts.Shift3d):
     @staticmethod
     def from_float(mod):
         qshift = Shift3d(mod.in_channels, rp_dict[mod.padding])
+        qshift.cut_borders = mod.cut_borders
+        qshift._reduction_fn = mod._reduction_fn
         qshift.weight = mod.weight
         qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
