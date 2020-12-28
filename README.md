@@ -38,7 +38,7 @@ It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4
   
 
 ## Requirements:
-    C++17 must be supported by your compiler!
+    C++17 must be supported by your compiler! (due to constexpr in code)
     PyTorch >= 1.7.0; 
 
 ## Instalation:
@@ -73,9 +73,9 @@ Additional options for shift layer:
    Provides a heuristic rules for emulation of DepthWise Convolution via Shift layer
    in terms of output shape and shift kernel behaviour.
         
-   a) This directly influence on proper shift param initialization.
-   b) Output shape via cutting the output and pooling(depending on stride)
-   c) Automaticaly using AveragePooling for emulation stride > 1
+   1. This directly influence on proper shift param initialization.
+   2. Output shape via cutting the output and pooling(depending on stride)
+   3. Automaticaly using AveragePooling for emulation stride > 1
 
 2. Pytorch Quantization: SSL shifts can be used in quantized pipeline!
    Shifts do not needed the activation tracking and so model with shift module can be easily converted by following:
@@ -89,4 +89,4 @@ Additional options for shift layer:
 
 ## TO DO:
   1. Add unit tests(yes I still make testing in some strange manners)
-  3. Make more weights initialization schemes!
+  2. Speed up the ops. Currently ShiftLayer is 2x times slower than Pytorch Conv implementation
