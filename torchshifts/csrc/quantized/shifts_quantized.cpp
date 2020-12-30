@@ -7,12 +7,12 @@
 
 
 
-template <typename scalar_t, int32_t kSpatialDim>
+template <typename scalar_t, int kSpatialDim=1,
+          BIPadding padding_mode = BIPadding::Zeros>
 API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
                               const torch::Tensor& borders,
                               torch::Tensor& output,
-                              int64_t weights_zero_point,
-                              BIPadding padding_mode){
+                              int64_t weights_zero_point){
     int64_t sizeN = input.size(0);
     int64_t sizeC = input.size(1);
     int64_t sizeH = input.size(2);
@@ -50,37 +50,75 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
     {// Path for NDHWC
         at::parallel_for(0, sizeN*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
             for (int64_t index = start; index < end; ++index) {
-                int64_t k = index % sizeD;
-                int64_t j = (index / sizeD) % sizeW;
-                int64_t i = (index / (sizeD*sizeW)) % sizeH;
-                int64_t n = (index / (sizeD*sizeW*sizeH));
-                shift_forward_kernel_nhwdc_q<scalar_t, int64_t>(input_ptr, output_ptr, weights_ptr,
-                                                                n, i, j, k, sizeC, sizeH, sizeW, sizeD,
-                                                                input_sN, input_sC, input_sH, input_sW, input_sD,
-                                                                output_sN, output_sC, output_sH, output_sW, output_sD,
-                                                                weights_sC, weights_sS,
-                                                                i_left_border, j_left_border, k_left_border,
-                                                                i_right_border, j_right_border, k_right_border,
-                                                                zero_point,  weights_zero_point, padding_mode);
+                int64_t k, j, i, n;
+                switch (kSpatialDim){
+                    case 1:
+                        k = 0;
+                        j = 0;
+                        i = index % sizeH;
+                        n = index / sizeH;
+                        break;
+                    case 2:
+                        k = 0;
+                        j = index % sizeW;
+                        i = (index / sizeW) % sizeH;
+                        n = index / (sizeW*sizeH);
+                        break;
+                    case 3:
+                        k = index % sizeD;
+                        j = (index / sizeD) % sizeW;
+                        i = (index / (sizeD*sizeW)) % sizeH;
+                        n = (index / (sizeD*sizeW*sizeH));
+                        break;
+                }    
+                shift_forward_kernel_nhwdc_q<scalar_t, int64_t, kSpatialDim, padding_mode>(
+                                        input_ptr, output_ptr, weights_ptr,
+                                        n, i, j, k, sizeC, sizeH, sizeW, sizeD,
+                                        input_sN, input_sC, input_sH, input_sW, input_sD,
+                                        output_sN, output_sC, output_sH, output_sW, output_sD,
+                                        weights_sC, weights_sS,
+                                        i_left_border, j_left_border, k_left_border,
+                                        i_right_border, j_right_border, k_right_border,
+                                        zero_point, weights_zero_point);
             }
         });
     } else
     {
         at::parallel_for(0, sizeN*sizeC*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
             for (int64_t index = start; index < end; ++index) {
-                int64_t k = index % sizeD;
-                int64_t j = (index / sizeD) % sizeW;
-                int64_t i = (index / (sizeD*sizeW)) % sizeH;
-                int64_t c = (index / (sizeD*sizeW*sizeH)) % sizeC;
-                int64_t n = (index / (sizeD*sizeW*sizeH*sizeC));
-                shift_forward_kernel_nchwd_q<scalar_t, int64_t>(input_ptr, output_ptr, weights_ptr,
-                                                                n, c, i, j, k, sizeH, sizeW, sizeD,
-                                                                input_sN, input_sC, input_sH, input_sW, input_sD,
-                                                                output_sN, output_sC, output_sH, output_sW, output_sD,
-                                                                weights_sC, weights_sS,
-                                                                i_left_border, j_left_border, k_left_border,
-                                                                i_right_border, j_right_border, k_right_border,
-                                                                zero_point,  weights_zero_point, padding_mode);
+                int64_t k, j, i, c n;
+                switch (kSpatialDim){
+                    case 1:
+                        k = 0;
+                        j = 0;
+                        i = index % sizeH;
+                        c = (index / sizeH) % sizeC;
+                        n =  index / (sizeH*sizeC);
+                        break;
+                    case 2:
+                        k = 0;
+                        j = index % sizeW;
+                        i = (index / sizeW) % sizeH;
+                        c = (index / (sizeW*sizeH)) % sizeC; 
+                        n = index / (sizeW*sizeH*sizeC);
+                        break;
+                    case 3:
+                        k = index % sizeD;
+                        j = (index / sizeD) % sizeW;
+                        i = (index / (sizeD*sizeW)) % sizeH;
+                        c = (index / (sizeD*sizeW*sizeH)) % sizeC;
+                        n = (index / (sizeD*sizeW*sizeH*sizeC));
+                        break;
+                }             
+                shift_forward_kernel_nchwd_q<scalar_t, int64_t, kSpatialDim, padding_mode>(
+                                        input_ptr, output_ptr, weights_ptr,
+                                        n, c, i, j, k, sizeH, sizeW, sizeD,
+                                        input_sN, input_sC, input_sH, input_sW, input_sD,
+                                        output_sN, output_sC, output_sH, output_sW, output_sD,
+                                        weights_sC, weights_sS,
+                                        i_left_border, j_left_border, k_left_border,
+                                        i_right_border, j_right_border, k_right_border,
+                                        zero_point,  weights_zero_point);
             }
         });
     }
@@ -110,11 +148,33 @@ torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
     else {
         output = at::_empty_affine_quantized(new_size, input.options(), input.q_scale(), input.q_zero_point());
     }
-
-    AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-            _q_shifts_cpu<scalar_t, nD>(input, iweights, borders, output, weights_zero_point,
-                                        static_cast<BIPadding>(padding_mode));
-    }); 
+    switch (padding_mode){        
+        case 0:
+            AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
+                _q_shifts_cpu<scalar_t, nD, BIPadding::Zeros>(input, iweights, borders, output, weights_zero_point);
+            }); 
+            break;
+        case 1:
+            AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
+                _q_shifts_cpu<scalar_t, nD, BIPadding::Border>(input, iweights, borders, output, weights_zero_point);
+            }); 
+            break;
+        case 2:
+            AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
+                _q_shifts_cpu<scalar_t, nD, BIPadding::Periodic>(input, iweights, borders, output, weights_zero_point);
+            }); 
+            break;
+        case 3:
+            AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
+                _q_shifts_cpu<scalar_t, nD, BIPadding::Reflect>(input, iweights, borders, output, weights_zero_point);
+            }); 
+            break;
+        case 4:
+            AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
+                _q_shifts_cpu<scalar_t, nD, BIPadding::Symmetric>(input, iweights, borders, output, weights_zero_point);
+            }); 
+            break;
+    }
     return output;
 }
 
