@@ -45,6 +45,14 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
     int64_t j_right_border = kSpatialDim < 2 ? 1 : MIN(sizeW, borders_data[3]);
     int64_t k_left_border =  kSpatialDim < 3 ? 0 : MAX(static_cast<int64_t>(0), borders_data[4]);
     int64_t k_right_border =  kSpatialDim < 3 ? 1 : MIN(sizeD, borders_data[5]);
+
+    int64_t sizeWH = sizeW*sizeH;
+    int64_t sizeWD = sizeD*sizeW;
+    int64_t sizeDWH = sizeWD*sizeH;
+    int64_t sizeDWHC = sizeDWH * sizeC;
+    int64_t sizeHC = sizeH*sizeC;
+    int64_t sizeWHC = sizeW*sizeH*sizeC;
+
     
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d))
     {// Path for NDHWC
@@ -62,15 +70,15 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
                         k = 0;
                         j = index % sizeW;
                         i = (index / sizeW) % sizeH;
-                        n = index / (sizeW*sizeH);
+                        n = index / sizeWH;
                         break;
                     case 3:
                         k = index % sizeD;
                         j = (index / sizeD) % sizeW;
-                        i = (index / (sizeD*sizeW)) % sizeH;
-                        n = (index / (sizeD*sizeW*sizeH));
+                        i = (index / sizeWD) % sizeH;
+                        n = (index / sizeDWH);
                         break;
-                }                
+                }                      
                 shift_forward_kernel_nhwdc<scalar_t, int64_t, kSpatialDim, padding_mode, active>(
                                         input_ptr, output_ptr, weights_ptr, dweights_ptr,
                                         n, i, j, k, sizeC, sizeH, sizeW, sizeD,
@@ -85,28 +93,28 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
     {
         at::parallel_for(0, sizeN*sizeC*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
             for (int64_t index = start; index < end; ++index) {
-                int64_t k, j, i, c n;
+                int64_t k, j, i, c, n;
                 switch (kSpatialDim){
                     case 1:
                         k = 0;
                         j = 0;
                         i = index % sizeH;
                         c = (index / sizeH) % sizeC;
-                        n =  index / (sizeH*sizeC);
+                        n =  index / sizeHC;
                         break;
                     case 2:
                         k = 0;
                         j = index % sizeW;
                         i = (index / sizeW) % sizeH;
-                        c = (index / (sizeW*sizeH)) % sizeC; 
-                        n = index / (sizeW*sizeH*sizeC);
+                        c = (index / sizeWH) % sizeC; 
+                        n = index / sizeWHC;
                         break;
                     case 3:
                         k = index % sizeD;
                         j = (index / sizeD) % sizeW;
-                        i = (index / (sizeD*sizeW)) % sizeH;
-                        c = (index / (sizeD*sizeW*sizeH)) % sizeC;
-                        n = (index / (sizeD*sizeW*sizeH*sizeC));
+                        i = (index / sizeWD) % sizeH;
+                        c = (index / sizeDWH) % sizeC;
+                        n = index / sizeDWHC;
                         break;
                 }                
                 shift_forward_kernel_nchwd<scalar_t, int64_t, kSpatialDim, padding_mode, active>(
@@ -175,6 +183,13 @@ API_INLINE void _shifts_backward_cpu(const torch::Tensor& grad_input,
     int64_t k_left_border = kSpatialDim < 3 ? 0 : MAX(static_cast<int64_t>(0), borders_data[4]);
     int64_t k_right_border = kSpatialDim < 3 ? 1 : MIN(input.size(4), borders_data[5]);
     
+    int64_t sizeWH = sizeW*sizeH;
+    int64_t sizeWD = sizeD*sizeW;
+    int64_t sizeDWH = sizeWD*sizeH;
+    int64_t sizeDWHC = sizeDWH * sizeC;
+    int64_t sizeHC = sizeH*sizeC;
+    int64_t sizeWHC = sizeW*sizeH*sizeC;
+
     
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d))
     {// Path for NDHWC
@@ -192,13 +207,13 @@ API_INLINE void _shifts_backward_cpu(const torch::Tensor& grad_input,
                         k = 0;
                         j = index % sizeW;
                         i = (index / sizeW) % sizeH;
-                        n = index / (sizeW*sizeH);
+                        n = index / sizeWH;
                         break;
                     case 3:
                         k = index % sizeD;
                         j = (index / sizeD) % sizeW;
-                        i = (index / (sizeD*sizeW)) % sizeH;
-                        n = (index / (sizeD*sizeW*sizeH));
+                        i = (index / sizeWD) % sizeH;
+                        n = (index / sizeDWH);
                         break;
                 }      
                 shift_backward_kernel_nhwdc<scalar_t, int64_t, kSpatialDim, padding_mode, active>(
@@ -217,28 +232,28 @@ API_INLINE void _shifts_backward_cpu(const torch::Tensor& grad_input,
     {
         at::parallel_for(0, sizeN*sizeC*sizeH*sizeW*sizeD, 0, [&](int64_t start, int64_t end){
             for (int64_t index = start; index < end; ++index) {
-                int64_t k, j, i, c n;
+                int64_t k, j, i, c, n;
                 switch (kSpatialDim){
                     case 1:
                         k = 0;
                         j = 0;
                         i = index % sizeH;
                         c = (index / sizeH) % sizeC;
-                        n =  index / (sizeH*sizeC);
+                        n =  index / sizeHC;
                         break;
                     case 2:
                         k = 0;
                         j = index % sizeW;
                         i = (index / sizeW) % sizeH;
-                        c = (index / (sizeW*sizeH)) % sizeC; 
-                        n = index / (sizeW*sizeH*sizeC);
+                        c = (index / sizeWH) % sizeC; 
+                        n = index / sizeWHC;
                         break;
                     case 3:
                         k = index % sizeD;
                         j = (index / sizeD) % sizeW;
-                        i = (index / (sizeD*sizeW)) % sizeH;
-                        c = (index / (sizeD*sizeW*sizeH)) % sizeC;
-                        n = (index / (sizeD*sizeW*sizeH*sizeC));
+                        i = (index / sizeWD) % sizeH;
+                        c = (index / sizeDWH) % sizeC;
+                        n = index / sizeDWHC;
                         break;
                 }      
                 shift_backward_kernel_nchwd<scalar_t, int64_t, kSpatialDim, padding_mode, active>(
@@ -283,7 +298,7 @@ torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
         case 1:
             AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
                 (active_flag)?_shifts_forward_cpu<scalar_t, nD, BIPadding::Border, true>(input, iweights, dweights, borders, output):
-                              _shifts_forward_cpu<scalar_t, nD,  BIPadding::Border, false>(input, iweights, dweights, borders output);
+                              _shifts_forward_cpu<scalar_t, nD,  BIPadding::Border, false>(input, iweights, dweights, borders, output);
             });
             break;
         case 2:

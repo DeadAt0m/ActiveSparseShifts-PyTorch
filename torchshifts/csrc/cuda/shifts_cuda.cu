@@ -60,30 +60,38 @@ __global__ void _shifts_cuda(const idx_t n_threads,
     idx_t j_right_border = kSpatialDim < 2 ? 1 : MIN(sizeW, borders_data[3]);
     idx_t k_left_border =  kSpatialDim < 3 ? 0 : MAX(static_cast<idx_t>(0), borders_data[4]);
     idx_t k_right_border =  kSpatialDim < 3 ? 1 : MIN(sizeD, borders_data[5]);
+
+
+    idx_t sizeWH = sizeW*sizeH;
+    idx_t sizeWD = sizeD*sizeW;
+    idx_t sizeDWH = sizeWD*sizeH;
+    idx_t sizeDWHC = sizeDWH * sizeC;
+    idx_t sizeHC = sizeH*sizeC;
+    idx_t sizeWHC = sizeW*sizeH*sizeC;
     
     CUDA_KERNEL_LOOP_TYPE(index, n_threads, idx_t){
-        const idx_t k, j, i, c n;
+        const idx_t k, j, i, c, n;
         switch (kSpatialDim){
             case 1:
                 k = 0;
                 j = 0;
                 i = index % sizeH;
                 c = (index / sizeH) % sizeC;
-                n =  index / (sizeH*sizeC);
+                n =  index / sizeHC;
                 break;
             case 2:
                 k = 0;
                 j = index % sizeW;
                 i = (index / sizeW) % sizeH;
-                c = (index / (sizeW*sizeH)) % sizeC; 
-                n = index / (sizeW*sizeH*sizeC);
+                c = (index / sizeWH) % sizeC; 
+                n = index / sizeWHC;
                 break;
             case 3:
                 k = index % sizeD;
                 j = (index / sizeD) % sizeW;
-                i = (index / (sizeD*sizeW)) % sizeH;
-                c = (index / (sizeD*sizeW*sizeH)) % sizeC;
-                n = (index / (sizeD*sizeW*sizeH*sizeC));
+                i = (index / sizeWD) % sizeH;
+                c = (index / sizeDWH) % sizeC;
+                n = index / sizeDWHC;
                 break;
         } 
         shift_forward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(
@@ -152,30 +160,36 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
     idx_t k_left_border = kSpatialDim < 3 ? 0 : MAX(static_cast<idx_t>(0), borders_data[4]);
     idx_t k_right_border = kSpatialDim < 3 ? 1 : MIN(input.sizes[4], borders_data[5]);
     
+    idx_t sizeWH = sizeW*sizeH;
+    idx_t sizeWD = sizeD*sizeW;
+    idx_t sizeDWH = sizeWD*sizeH;
+    idx_t sizeDWHC = sizeDWH * sizeC;
+    idx_t sizeHC = sizeH*sizeC;
+    idx_t sizeWHC = sizeW*sizeH*sizeC;
 
     CUDA_KERNEL_LOOP_TYPE(index, n_threads, idx_t){
-        const idx_t k, j, i, c n;
+        const idx_t k, j, i, c, n;
         switch (kSpatialDim){
             case 1:
                 k = 0;
                 j = 0;
                 i = index % sizeH;
                 c = (index / sizeH) % sizeC;
-                n =  index / (sizeH*sizeC);
+                n =  index / sizeHC;
                 break;
             case 2:
                 k = 0;
                 j = index % sizeW;
                 i = (index / sizeW) % sizeH;
-                c = (index / (sizeW*sizeH)) % sizeC; 
-                n = index / (sizeW*sizeH*sizeC);
+                c = (index / sizeWH) % sizeC; 
+                n = index / sizeWHC;
                 break;
             case 3:
                 k = index % sizeD;
                 j = (index / sizeD) % sizeW;
-                i = (index / (sizeD*sizeW)) % sizeH;
-                c = (index / (sizeD*sizeW*sizeH)) % sizeC;
-                n = (index / (sizeD*sizeW*sizeH*sizeC));
+                i = (index / sizeWD) % sizeH;
+                c = (index / sizeDWH) % sizeC;
+                n = index / sizeDWHC;
                 break;
         } 
         shift_backward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(

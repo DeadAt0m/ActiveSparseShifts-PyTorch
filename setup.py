@@ -21,7 +21,22 @@ cwd = Path.cwd()
 
 requirements = [f'torch >= {PYTORCH_VERSION}']
 
-version = copy.copy(MODULE_VERSION)
+#cuda
+cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
+cu_ver = ''
+if cuda_available():
+    cu_ver = torch_version.cuda
+elif CUDA_HOME is not None:
+    cu_ver = ''
+if cu_ver:
+    cu_ver = '+' + cu_ver
+
+
+
+
+
+
+version = copy.copy(MODULE_VERSION) + cu_ver
 sha = 'Unknown'
 try:
     sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=str(cwd)).decode('ascii').strip()
@@ -65,7 +80,7 @@ def get_extensions():
             parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
     extra_compile_args['cxx'].extend(parallel_method)
 
-    if (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1':
+    if cuda_avail:
         print('Building with CUDA')
         extension = CUDAExtension
         sources += list((extensions_dir / 'cuda').glob('*.cu'))
