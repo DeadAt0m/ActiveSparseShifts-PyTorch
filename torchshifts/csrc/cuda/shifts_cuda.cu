@@ -70,7 +70,7 @@ __global__ void _shifts_cuda(const idx_t n_threads,
     idx_t sizeWHC = sizeW*sizeH*sizeC;
     
     CUDA_KERNEL_LOOP_TYPE(index, n_threads, idx_t){
-        const idx_t k, j, i, c, n;
+        idx_t k, j, i, c, n;
         switch (kSpatialDim){
             case 1:
                 k = 0;
@@ -168,7 +168,7 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
     idx_t sizeWHC = sizeW*sizeH*sizeC;
 
     CUDA_KERNEL_LOOP_TYPE(index, n_threads, idx_t){
-        const idx_t k, j, i, c, n;
+        idx_t k, j, i, c, n;
         switch (kSpatialDim){
             case 1:
                 k = 0;
@@ -621,11 +621,13 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
                                 _shifts_backward_cuda<scalar_t, nD, int,  BIPadding::Periodic, false>
                                 <<<GET_CUDA_BLOCKS(count), LOCAL_CUDA_NUM_THREADS, 0, stream>>>(
                                     static_cast<int>(count),
-                                    getTensorInfo<scalar_t, int>(input),
+                                    getTensorInfo<scalar_t, int>(grad),
                                     getTensorInfo<int, int>(iweights),
                                     getTensorInfo<scalar_t, int>(dweights),
+                                    getTensorInfo<scalar_t, int>(input),
                                     getTensorInfo<int, int>(_borders),
-                                    getTensorInfo<scalar_t, int>(output));
+                                    getTensorInfo<scalar_t, int>(out_grad),
+                                    getTensorInfo<scalar_t, int>(weights_grad));
                 }
                 else{
                     active_flag?_shifts_backward_cuda<scalar_t, nD, int64_t, BIPadding::Periodic, true>
@@ -704,7 +706,7 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
                 if (int32bit_cond){
                     active_flag?_shifts_backward_cuda<scalar_t, nD, int, BIPadding::Symmetric, true>
                                 <<<GET_CUDA_BLOCKS(count), LOCAL_CUDA_NUM_THREADS, 0, stream>>>(
-                                    sstatic_cast<int>(count),
+                                    static_cast<int>(count),
                                     getTensorInfo<scalar_t, int>(grad),
                                     getTensorInfo<int, int>(iweights),
                                     getTensorInfo<scalar_t, int>(dweights),

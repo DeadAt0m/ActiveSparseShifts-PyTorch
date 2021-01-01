@@ -1,5 +1,5 @@
 MODULE_NAME = 'torchshifts' 
-MODULE_VERSION = '2.5'
+MODULE_VERSION = '2.6'
 #DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STD_VERSION = "c++17"
@@ -24,13 +24,13 @@ requirements = [f'torch >= {PYTORCH_VERSION}']
 #cuda
 cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
 cu_ver = ''
-if cuda_available():
+if CUDA_HOME is not None:
+    cu_ver = Path(CUDA_HOME).name.strip('cuda-')
+elif cuda_available():
     cu_ver = torch_version.cuda
-elif CUDA_HOME is not None:
-    cu_ver = ''
 if cu_ver:
-    cu_ver = '+' + cu_ver
-
+    cu_ver = '+cu' + cu_ver
+cu_ver = cu_ver.replace('.','')
 
 
 
