@@ -54,11 +54,11 @@ API_INLINE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t stride
     bool pass_cond = (tidx_i>=0)&&(tidx_i >= i_left_border)&&(tidx_i < i_right_border);
     if (kSpatialDim > 1){
         tidx_j = infer_index<idx_t,padding_mode>(j_shifted + j_left_border, MAX(sizeW, j_right_border));
-        pass_cond &= (tidx_j>=0)&&(tidx_j >= j_left_border)&&(tidx_j < j_right_border);
+        pass_cond = pass_cond&&(tidx_j>=0)&&(tidx_j >= j_left_border)&&(tidx_j < j_right_border);
     }
     if (kSpatialDim > 2){
         tidx_k = infer_index<idx_t,padding_mode>(k_shifted + k_left_border, MAX(sizeD, k_right_border));
-        pass_cond &= (tidx_k>=0)&&(tidx_k >= k_left_border)&&(tidx_k < k_right_border);
+        pass_cond = pass_cond&&(tidx_k>=0)&&(tidx_k >= k_left_border)&&(tidx_k < k_right_border);
     }
     if (pass_cond){
         output_value = array[tidx_i * strideH + tidx_j * strideW + tidx_k * strideD + c * strideC];
@@ -314,7 +314,6 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
                                         0, 0, i_left_border, j_left_border, k_left_border,
                                         i_right_border, j_right_border, k_right_border,
                                         input_grad_NC, zp,  _vals_array);
-       
         *output_grad_NCHWD = compute_interpolated<scalar_t,idx_t,kSpatialDim,true>(
                                         _vals_array, di, dj, dk);
     } 
