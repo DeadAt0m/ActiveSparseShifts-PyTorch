@@ -208,11 +208,12 @@ API_INLINE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
         idx_t si = i - *(weights+c*weights_sC);
         idx_t sj = j;
         idx_t sk = k;
+        scalar_t di = zp;
+        scalar_t dj = zp;
+        scalar_t dk = zp;
         if (active)
         {   
-            scalar_t di = *(dweights + c*dweights_sC);
-            scalar_t dj = zp;
-            scalar_t dk = zp;
+            di = *(dweights + c*dweights_sC);
             if (kSpatialDim > 1) { 
                 oj = j - j_left_border;
                 sj = j - *(weights+c*weights_sC+weights_sS);
@@ -302,6 +303,8 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
         osk = ok - shiftk;
         rsk = k + shiftk;
     }
+    scalar_t *output_grad_NCHWD = output_grad + n*output_grad_sN + c*output_grad_sC +
+                                  oi*output_grad_sH + oj*output_grad_sW + ok*output_grad_sD; 
     if (active)
     {
         get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
@@ -311,14 +314,11 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
                                         0, 0, i_left_border, j_left_border, k_left_border,
                                         i_right_border, j_right_border, k_right_border,
                                         input_grad_NC, zp,  _vals_array);
-        scalar_t *output_grad_NCHWD = output_grad + n*output_grad_sN + c*output_grad_sC +
-                                      oi*output_grad_sH + oj*output_grad_sW + ok*output_grad_sD; 
+       
         *output_grad_NCHWD = compute_interpolated<scalar_t,idx_t,kSpatialDim,true>(
                                         _vals_array, di, dj, dk);
     } 
-    else { 
-        scalar_t *output_grad_NCHWD = output_grad + n*output_grad_sN + c*output_grad_sC +
-                                      oi*output_grad_sH + oj*output_grad_sW + ok*output_grad_sD;                                                      
+    else {                                              
         *output_grad_NCHWD = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
                                         rsi, sizeH, input_grad_sH,
                                         rsj, sizeW, input_grad_sW,
@@ -577,7 +577,7 @@ API_INLINE void shift_forward_kernel_nhwdc_q(scalar_t* input, scalar_t* output,
         scalar_t *output_NHWD = output + n*output_sN + oi*output_sH + oj*output_sW + ok*output_sD;
         for (idx_t c = 0; c < sizeC; c++)
         {
-            si -= (*(weights+c*weights_sC) - weights_zero_point);
+            si = i - (*(weights+c*weights_sC) - weights_zero_point);
             if (kSpatialDim > 1){ sj = j - (*(weights+weights_sS+c*weights_sC) - weights_zero_point); }
             if (kSpatialDim > 2){ sk = k - (*(weights+2*weights_sS+c*weights_sC) - weights_zero_point); }
              output_NHWD[c*output_sC] = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
