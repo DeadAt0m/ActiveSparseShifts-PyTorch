@@ -289,8 +289,8 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
     idx_t rsk = k;
     scalar_t input_grad_NCHWD_val = input_grad_NC[i*input_grad_sH + j*input_grad_sW + k*input_grad_sD];
     if (kSpatialDim > 1){
-        oj = i + j_left_border;
-        shiftj = *(weights+c*weights_sC+weights_sS);     
+        oj = j + j_left_border;
+        shiftj = *(weights+c*weights_sC + weights_sS);     
         dj = *(dweights + c*dweights_sC + dweights_sS);
         osj = oj - shiftj;
         rsj = j + shiftj;
@@ -457,13 +457,13 @@ API_INLINE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* inpu
         if (kSpatialDim > 1) {
             shiftj = *(weights+weights_sS+c*weights_sC);
             dj = *(dweights+dweights_sS+c*dweights_sC);
-            osj = j - shiftj;
+            osj = oj - shiftj;
             rsj = j + shiftj;
         }
         if (kSpatialDim > 2) {
             shiftk = *(weights+2*weights_sS+c*weights_sC);
             dk = *(dweights+2*dweights_sS+c*dweights_sC);
-            osk = k - shiftk;
+            osk = ok - shiftk;
             rsk = k + shiftk;
         }
         if (active)
