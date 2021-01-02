@@ -38,7 +38,7 @@ class Shift2d(shifts.Shift2d):
         self.qweight = quantize_shift_weights(self.weight.float())
 
     def forward(self, input):
-        return self._reduction_fn(self.shift2d_quantized(input, self.qweight, self.padding, self.cut_borders))
+        return self._reduction_fn(shift2d_quantized(input, self.qweight, self.padding, self.cut_borders))
 
     def _get_name(self):
         return 'QuantizedShift2D'
