@@ -23,15 +23,16 @@ requirements = [f'torch >= {PYTORCH_VERSION}']
 
 #cuda
 cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
-cu_ver = ''
-if CUDA_HOME is not None:
-    cu_ver = Path(CUDA_HOME).resolve().name.strip('cuda-')
-elif cuda_available():
-    cu_ver = torch_version.cuda
-if cu_ver:
-    cu_ver = '+cu' + cu_ver
-cu_ver = cu_ver.replace('.','')
-MODULE_VERSION += cu_ver
+if cuda_avail:
+    cu_ver = ''
+    if CUDA_HOME is not None:
+        cu_ver = Path(CUDA_HOME).resolve().name.strip('cuda-')
+    elif cuda_available():
+        cu_ver = torch_version.cuda
+    if cu_ver:
+        cu_ver = '+cu' + cu_ver
+    cu_ver = cu_ver.replace('.','')
+    MODULE_VERSION += cu_ver
 
 
 version = copy.copy(MODULE_VERSION)

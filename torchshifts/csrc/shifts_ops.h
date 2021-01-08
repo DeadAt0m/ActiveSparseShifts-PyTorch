@@ -16,7 +16,6 @@ torch::Tensor shiftnd_forward(const torch::Tensor& input,
                               int64_t padding_mode,
                               bool active_flag){
     if (input.is_cuda()) {
-        
         #ifdef WITH_CUDA
             if constexpr(nD == 3){
                 return shift3d_forward_cuda(input, weights, borders, new_size, padding_mode, active_flag);
@@ -167,46 +166,46 @@ class Shift3dFunction : public torch::autograd::Function<Shift3dFunction> {
 
 std::tuple<torch::Tensor, std::vector<int64_t>> check_borders(const torch::Tensor& input,
                                                               const torch::Tensor& borders,
-                                                              const int64_t dim){
+                                                              const int64_t idim){
     auto sizes = input.sizes();
-    auto shift = (((dim + 1) == (int64_t)sizes.size())?1:2);
-    int64_t hdim = 3; // hardcoded for pass no more than, 5D tensor
-    auto device = input.device();
-    auto tops = input.options().dtype(torch::kInt).device(torch::kCPU);
-    torch::Tensor std_borders = torch::zeros({hdim*2}, tops);
-    
-    for (int64_t i=0 ; i < hdim; ++i){
-            std_borders.index_put_({i*2+1}, (i+1)>dim?1:sizes[i+shift]);  
+    const int dim = static_cast<int>(idim);
+    const int shift = (((dim + 1) == (int)sizes.size())?1:2);
+    const int hdim = 3; // hardcoded for pass no more than, 5D tensor
+    const int _dim = std::min(hdim,dim);
+    auto dev = input.device();
+    torch::Tensor std_borders = torch::empty({hdim*2}, borders.options().dtype(torch::kInt).device(torch::kCPU));
+    int* std_borders_data = std_borders.data_ptr<int>();
+    for (int i=0 ; i < hdim; ++i){
+        std_borders_data[i*2] = 0;
+        std_borders_data[i*2+1] = ((i+1)>dim)?1:sizes[i+shift];
     }
-    std_borders = std_borders.view({hdim,2});
-    torch::Tensor d_borders = std_borders.clone();
-    
     if (borders.numel() != 0){
-        torch::Tensor _borders = borders.clone().to(torch::kInt).to(torch::kCPU);
-        _borders.index_put_({Slice(None,dim), 1}, -1*_borders.index({Slice(None,dim), 1}));
-        d_borders.index_put_({Slice(None,dim), Slice()}, 
-                              _borders.index({Slice(None,dim), Slice()}) +
-                              d_borders.index({Slice(None,dim), Slice()}));
-        auto check = ((d_borders.index({Slice(),1}) - d_borders.index({Slice(),0})) < 1);
-        d_borders.index_put_({check, 1}, 1 + d_borders.index({check, 0}));
-        auto check2 = (d_borders.index({Slice(), 0}) == std_borders.index({Slice(), 1})) * check;
-        if (!check2.sum().item().toBool()){
-            d_borders.index_put_({check2, 0}, std_borders.index({check2, 1}) - 1);
-            d_borders.index_put_({check2, 1}, std_borders.index({check2, 1}));
-        }
-        check2 = (d_borders.index({Slice(), 1}) == 0) * check;
-        if (!check2.sum().item().toBool()){
-            d_borders.index_put_({check2, 0}, 0);
-            d_borders.index_put_({check2, 1}, 1);
+        auto _borders = borders.to(torch::kInt).to(torch::kCPU);
+        int* borders_data = _borders.data_ptr<int>();
+        for (int i=0 ; i < _dim; ++i){
+            std_borders_data[i*2+1] -= borders_data[i*2+1];
+            std_borders_data[i*2] = borders_data[i*2]; 
+            if ((std_borders_data[i*2+1] - std_borders_data[i*2]) < 1){
+                std_borders_data[i*2+1] = std_borders_data[i*2] + 1;
+            }
+            if (std_borders_data[i*2] == static_cast<int>(sizes[i+shift])){
+                std_borders_data[i*2] = static_cast<int>(sizes[i+shift]) - 1;
+                std_borders_data[i*2+1] = std_borders_data[i*2] + 1;
+            }
+            if (std_borders_data[i*2+1] == 0){
+                std_borders_data[i*2] = 0;
+                std_borders_data[i*2+1] = 1;
+            } 
+            std_borders_data[i*2] = std::max(static_cast<int>(0), std_borders_data[i*2]);
+            std_borders_data[i*2+1] = std::min(static_cast<int>(sizes[i+shift]), std_borders_data[i*2+1]);
         } 
     }
-    torch::Tensor _new_sizes = (d_borders.index({Slice(),1}) - d_borders.index({Slice(),0})).index({Slice(None,dim)});
-    std::vector<int64_t> new_sizes(_new_sizes.data_ptr<int>(), 
-                                   _new_sizes.data_ptr<int>() + _new_sizes.numel());
-    for (auto it = sizes.rbegin() + sizes.size() - shift; it != sizes.rend(); ++it) {
-        new_sizes.insert(new_sizes.begin(), *it);
+    std::vector<int64_t> new_sizes(shift+_dim);
+    std::copy(sizes.begin(), sizes.begin()+shift, new_sizes.begin()); 
+    for (int i=0 ; i < _dim; ++i){ 
+        new_sizes[i+shift] = static_cast<int64_t>(std_borders_data[i*2+1] - std_borders_data[i*2]); 
     }
-    return  std::make_tuple(d_borders.index({Slice(None,dim), Slice()}).to(device), new_sizes);
+    return  std::make_tuple(std_borders.to(dev), new_sizes);
 }
 
 
