@@ -159,7 +159,6 @@ __global__ void _shifts_backward_cuda(const idx_t sizeNC,
     const idx_t k_left_border =  kSpatialDim < 3 ? 0 : borders_data[4];
     const idx_t k_right_border =  kSpatialDim < 3 ? 1 : borders_data[5];
     
-    const idx_t sizeNC = sizeN*sizeC;
     const idx_t sizeDW = (kSpatialDim > 1)?(sizeD*sizeW):1;
 
     for (int nc = (blockIdx.x * blockDim.x) + threadIdx.x; nc < (sizeNC); nc += (blockDim.x * gridDim.x)){
@@ -244,9 +243,9 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
     const int64_t D = (nD<3)?1:input.size(4);
     
     const int HWD_threads = 4;
-    const int threads_x = LOCAL_CUDA_NUM_THREADS / HWD_threads;
     const int threads_y = HWD_threads*((nD>1)?1:HWD_threads);
     const int threads_z = (nD>1)?HWD_threads:1;
+    const int threads_x = LOCAL_CUDA_NUM_THREADS / (threads_y*threads_z);
               
    
     const dim3 blocks(CUDA_BLOCKS(N*C, threads_x),
@@ -304,12 +303,13 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     bool int32bit_cond = canUse32BitIndexMath(grad) && canUse32BitIndexMath(weights) &&
                          canUse32BitIndexMath(input);
 
-    torch::Tensor _weights = int32bit_cond?weights.to(torch::kInt):weights.to(torch::kLong);
+    torch::Tensor _weights = weights.contiguous(LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor _borders = int32bit_cond?borders.to(torch::kInt):borders.to(torch::kLong);
     
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor weights_grad = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    torch::Tensor iweights = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    torch::Tensor iweights = torch::empty(_weights.sizes(), _weights.options().dtype(int32bit_cond?torch::kInt:torch::kLong),
+                                          LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor dweights = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     
     int64_t count = _weights.numel();
@@ -343,9 +343,9 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     const int64_t D = (nD<3)?1:input.size(4);
      
     const int HWD_threads = 4;
-    const int threads_x = LOCAL_CUDA_NUM_THREADS / HWD_threads;
     const int threads_y = HWD_threads*((nD>1)?1:HWD_threads);
     const int threads_z = (nD>1)?HWD_threads:1;
+    const int threads_x = LOCAL_CUDA_NUM_THREADS / (threads_y*threads_z);
 
     const dim3 blocks(CUDA_BLOCKS(N*C, threads_x),
                       CUDA_BLOCKS(H, threads_y),

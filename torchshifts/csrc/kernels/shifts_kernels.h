@@ -18,11 +18,13 @@ API_INLINE idx_t infer_index(const idx_t index, const idx_t len){
         case BIPadding::Periodic:
             return mod<idx_t>(index, len);
         case BIPadding::Reflect:
-            odd_seq = static_cast<bool>((static_cast<idx_t>(out_index<0) + (ABS(out_index)- static_cast<idx_t>(out_index<0))/ (len-1)) & 1);
-            return odd_seq?(len - 1 - mod<idx_t>(out_index, len - 1)):mod<idx_t>(out_index, len - 1);
+            odd_seq = static_cast<bool>((static_cast<idx_t>(index<0) + (ABS(index)- static_cast<idx_t>(index<0))/ (len-1)) & 1);
+            return odd_seq?(len - 1 - mod<idx_t>(index, len - 1)):mod<idx_t>(index, len - 1);
         case BIPadding::Symmetric: 
-            odd_seq = static_cast<bool>((static_cast<idx_t>(out_index<0) + (ABS(out_index)- static_cast<idx_t>(out_index<0))/ len) & 1); 
-            return odd_seq?(len - 1 - mod<idx_t>(out_index, len)):mod<idx_t>(out_index, len);
+            odd_seq = static_cast<bool>((static_cast<idx_t>(index<0) + (ABS(index)- static_cast<idx_t>(index<0))/ len) & 1); 
+            return odd_seq?(len - 1 - mod<idx_t>(index, len)):mod<idx_t>(index, len);
+        default:
+            return (index > len - 1)?-1:index;
     }
 }
 
@@ -47,8 +49,8 @@ API_INLINE scalar_t get_shifted_value(const idx_t i_shifted, const idx_t sizeH, 
     const idx_t pass_cond_k = (kSpatialDim > 2)?(static_cast<idx_t>(tidx_k>=0)*pass_cond_j):pass_cond_j;                               
     const idx_t isD = (kSpatialDim > 2)?tidx_k*strideD*pass_cond_k:0; 
 
-    const bool pass_cond = reinterpret_cast<bool>(pass_cond_k)&&out_passcond;          
-    return pass_cond?array[isH+isW+isD+c*strideC]:zero_point      
+    const bool pass_cond = static_cast<bool>(pass_cond_k)&&out_passcond;          
+    return pass_cond?array[isH+isW+isD+c*strideC]:zero_point;      
 }
 
 
@@ -121,7 +123,7 @@ API_INLINE scalar_t compute_interpolated(const scalar_t* const v, const scalar_t
                                      rev_shift<scalar_t,reverse>(diff_shiftH), 
                                      rev_shift<scalar_t,reverse>(diff_shiftW)):
                              zp;
-        case 1:
+        default:
             return pass_cond?interp1D(v[0], v[1], rev_shift<scalar_t,reverse>(diff_shiftH)):
                              zp;
     }
@@ -174,19 +176,19 @@ API_INLINE void shift_forward_kernel_nchwd(const scalar_t* const input, scalar_t
     const idx_t si = i - *(weights+c*weights_sC);
     const idx_t sj = (kSpatialDim > 1) ? (j - *(weights+c*weights_sC+weights_sS)) : j;
     const idx_t sk = (kSpatialDim > 2) ? (k - *(weights+c*weights_sC+2*weights_sS)) : k;       
-    
-    const scalar_t di = *(dweights + c*dweights_sC);
-    const scalar_t dj = (kSpatialDim > 1) ? *(dweights + c*dweights_sC + dweights_sS) : zp;
-    const scalar_t dk = (kSpatialDim > 2) ?  *(dweights + c*dweights_sC + 2*dweights_sS): zp; 
+     
 
     const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
     const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
     const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
-    const bool pass_cond = pass_cond_i * pass_cond_j * pass_cond_k;
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
 
     if (pass_cond){       
         if (active)
         {   
+            const scalar_t di = *(dweights + c*dweights_sC);
+            const scalar_t dj = (kSpatialDim > 1) ? *(dweights + c*dweights_sC + dweights_sS) : zp;
+            const scalar_t dk = (kSpatialDim > 2) ?  *(dweights + c*dweights_sC + 2*dweights_sS): zp;
             scalar_t vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
             get_shifted_values<scalar_t,idx_t,kSpatialDim, padding_mode>(
                                             si, sizeH, input_sH,
@@ -251,7 +253,7 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
     const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
     const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
     const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
-    const bool pass_cond = pass_cond_i * pass_cond_j * pass_cond_k;
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
 
 
     const idx_t oi = i - i_left_border;
@@ -275,8 +277,6 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
     if (kSpatialDim > 2){ADD((weights_grad + c*weights_grad_sC + 2*weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[2]));}
     
     // input gradient
-    scalar_t* output_grad_NCHWD = output_grad + n*output_grad_sN + c*output_grad_sC +
-                                  i*output_grad_sH + j*output_grad_sW + k*output_grad_sD;
         
     const idx_t rsi = oi + shifti;
     const idx_t rsj = (kSpatialDim > 1)?(oj + shiftj):j;
@@ -345,7 +345,7 @@ API_INLINE void shift_forward_kernel_nhwdc(const scalar_t* const input, scalar_t
     const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
     const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
     const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
-    const bool pass_cond = pass_cond_i * pass_cond_j * pass_cond_k;
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
 
     if (pass_cond){           
         scalar_t val;
@@ -431,7 +431,7 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
     const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
     const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
     const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
-    const bool pass_cond = pass_cond_i * pass_cond_j * pass_cond_k;
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
     
     const idx_t oi = i - i_left_border;
     const idx_t oj = (kSpatialDim > 1) ? (j - j_left_border) : j; 
@@ -538,7 +538,7 @@ API_INLINE void shift_forward_kernel_nchwd_q(const scalar_t* const input, scalar
     const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
     const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
     const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
-    const bool pass_cond = pass_cond_i * pass_cond_j * pass_cond_k;
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
     
     if (pass_cond) {
         scalar_t* output_NCHWD = output + n*output_sN + c*output_sC + oi*output_sH + oj*output_sW + ok*output_sD;
@@ -580,7 +580,7 @@ API_INLINE void shift_forward_kernel_nhwdc_q(const scalar_t* const input, scalar
     const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
     const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
     const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
-    const bool pass_cond = pass_cond_i * pass_cond_j * pass_cond_k;
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
     
     if (pass_cond) {
         scalar_t val;

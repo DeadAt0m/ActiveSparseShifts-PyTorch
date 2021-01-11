@@ -89,4 +89,4 @@ Additional options for shift layer:
 
 ## TO DO:
   1. Add unit tests(yes I still make testing in some strange manners)
-  2. Speed up the ops. Currently ShiftLayer is 2x times slower than Pytorch Conv implementation
+  2. Speed up the ops on CUDA
