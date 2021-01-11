@@ -1,5 +1,5 @@
 MODULE_NAME = 'torchshifts' 
-MODULE_VERSION = '2.5'
+MODULE_VERSION = '2.6'
 #DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STD_VERSION = "c++17"
@@ -20,6 +20,20 @@ cwd = Path.cwd()
 
 
 requirements = [f'torch >= {PYTORCH_VERSION}']
+
+#cuda
+cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
+if cuda_avail:
+    cu_ver = ''
+    if CUDA_HOME is not None:
+        cu_ver = Path(CUDA_HOME).resolve().name.strip('cuda-')
+    elif cuda_available():
+        cu_ver = torch_version.cuda
+    if cu_ver:
+        cu_ver = '+cu' + cu_ver
+    cu_ver = cu_ver.replace('.','')
+    MODULE_VERSION += cu_ver
+
 
 version = copy.copy(MODULE_VERSION)
 sha = 'Unknown'
@@ -52,7 +66,7 @@ def get_extensions():
     extension = CppExtension
 
     define_macros = []
-    extra_compile_args = {'cxx':[f'-std={STD_VERSION}']}
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-O3']}
 
     parallel_method = ['-DAT_PARALLEL_NATIVE=1']
     if sys.platform == 'win32':
@@ -65,12 +79,14 @@ def get_extensions():
             parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
     extra_compile_args['cxx'].extend(parallel_method)
 
-    if (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1':
+    if cuda_avail:
         print('Building with CUDA')
         extension = CUDAExtension
         sources += list((extensions_dir / 'cuda').glob('*.cu'))
         define_macros += [('WITH_CUDA', None)]
-        extra_compile_args['nvcc'] = [] if os.getenv('NVCC_FLAGS', '') == '' else os.getenv('NVCC_FLAGS', '').split(' ')
+        extra_compile_args['nvcc'] = ['-O3', '-DNDEBUG']
+        if os.getenv('NVCC_FLAGS', '') != '':
+            extra_compile_args['nvcc'].extend(os.getenv('NVCC_FLAGS', '').split(' '))
   
 
     sources = list(map(lambda x: str(x.resolve()), sources))

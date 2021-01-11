@@ -5,205 +5,224 @@
 enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 
 template<typename T>
-API_INLINE T mod(T a, T b){return (b + (a % b)) % b;}
+API_INLINE T mod(const T a, const T b){return (b + (a % b)) % b;}
 
-template<typename idx_t>
-API_INLINE idx_t infer_index(idx_t index, idx_t len, BIPadding padding_mode){
-    if ((index < len) && (index >= 0)) {return index;};
-    idx_t out_index = index;
+template<typename idx_t, BIPadding padding_mode = BIPadding::Zeros>
+API_INLINE idx_t infer_index(const idx_t index, const idx_t len){    
     bool odd_seq;
     switch (padding_mode){        
-        case BIPadding::Zeros: 
-            out_index = -1;
-            break;
+        case BIPadding::Zeros:
+            return (index > len - 1)?-1:index;
         case BIPadding::Border:
-            out_index = (out_index >= len) ? (len - 1) : 0;
-            break;
+            return MIN(len-1,MAX(index,static_cast<idx_t>(0)));
         case BIPadding::Periodic:
-            out_index = mod<idx_t>(out_index, len);
-            break;
+            return mod<idx_t>(index, len);
         case BIPadding::Reflect:
-            if (len == 1) {return 0;}
-            odd_seq = ((idx_t)(out_index<0) + (ABS(out_index)-(idx_t)(out_index<0))/ (len-1)) & 1;
-            out_index = mod<idx_t>(out_index, len - 1);
-            if (odd_seq){out_index = len - 1 - out_index;}
-            break;
-        case BIPadding::Symmetric:
-            odd_seq = ((idx_t)(out_index<0) + (ABS(out_index)-(idx_t)(out_index<0))/ len) & 1;
-            out_index = mod<idx_t>(out_index, len);
-            if (odd_seq){out_index = len - 1 - out_index;}
-            break;
+            odd_seq = static_cast<bool>((static_cast<idx_t>(index<0) + (ABS(index)- static_cast<idx_t>(index<0))/ (len-1)) & 1);
+            return odd_seq?(len - 1 - mod<idx_t>(index, len - 1)):mod<idx_t>(index, len - 1);
+        case BIPadding::Symmetric: 
+            odd_seq = static_cast<bool>((static_cast<idx_t>(index<0) + (ABS(index)- static_cast<idx_t>(index<0))/ len) & 1); 
+            return odd_seq?(len - 1 - mod<idx_t>(index, len)):mod<idx_t>(index, len);
+        default:
+            return (index > len - 1)?-1:index;
     }
-    return out_index;
 }
 
-template<typename scalar_t, typename idx_t>
-API_INLINE scalar_t get_shifted_value(idx_t i_shifted, idx_t sizeH, idx_t strideH,
-                                      idx_t j_shifted, idx_t sizeW, idx_t strideW,
-                                      idx_t k_shifted, idx_t sizeD, idx_t strideD,
-                                      idx_t c, idx_t strideC,
-                                      idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                      idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                      scalar_t* array, scalar_t zero_point, 
-                                      BIPadding padding_mode){
-    scalar_t output_value = zero_point;
-    idx_t tidx_i = -1;
-    idx_t tidx_j = -1;
-    idx_t tidx_k = -1;
-    tidx_i = infer_index<idx_t>(i_shifted + i_left_border, MAX(sizeH, i_right_border), padding_mode);
-    tidx_j = infer_index<idx_t>(j_shifted + j_left_border, MAX(sizeW, j_right_border), padding_mode);
-    tidx_k = infer_index<idx_t>(k_shifted + k_left_border, MAX(sizeD, k_right_border), padding_mode);
-    bool econd = (tidx_i >= i_left_border)&&(tidx_i < i_right_border)&&
-                 (tidx_j >= j_left_border)&&(tidx_j < j_right_border)&&
-                 (tidx_k >= k_left_border)&&(tidx_k < k_right_border);
-    if ((tidx_i>=0)&&(tidx_j>=0)&&(tidx_k>=0)&&econd){
-        output_value = array[tidx_i * strideH + tidx_j * strideW + tidx_k * strideD + c * strideC];
-    }
-    return output_value;
+
+template<typename scalar_t, typename idx_t, 
+         int kSpatialDim = 1,
+         BIPadding padding_mode = BIPadding::Zeros>
+API_INLINE scalar_t get_shifted_value(const idx_t i_shifted, const idx_t sizeH, const idx_t strideH,
+                                      const idx_t j_shifted, const idx_t sizeW, const idx_t strideW,
+                                      const idx_t k_shifted, const idx_t sizeD, const idx_t strideD,
+                                      const idx_t c, const idx_t strideC, const bool out_passcond,
+                                      const scalar_t* const array, const scalar_t zero_point){
+    const idx_t tidx_i = (sizeH==1)?0:infer_index<idx_t,padding_mode>(i_shifted, sizeH);
+    const idx_t pass_cond_i = static_cast<idx_t>(tidx_i>=0);
+    const idx_t isH = tidx_i*strideH*pass_cond_i;
+
+    const idx_t tidx_j = (kSpatialDim > 1)?((sizeW==1)?0:infer_index<idx_t,padding_mode>(j_shifted, sizeW)):0;
+    const idx_t pass_cond_j = (kSpatialDim > 1)?(static_cast<idx_t>(tidx_j>=0)*pass_cond_i):pass_cond_i;                               
+    const idx_t isW = (kSpatialDim > 1)?tidx_j*strideW*pass_cond_j:0;       
+                                                 
+    const idx_t tidx_k = (kSpatialDim > 2)?((sizeD==1)?0:infer_index<idx_t,padding_mode>(k_shifted, sizeD)):0;
+    const idx_t pass_cond_k = (kSpatialDim > 2)?(static_cast<idx_t>(tidx_k>=0)*pass_cond_j):pass_cond_j;                               
+    const idx_t isD = (kSpatialDim > 2)?tidx_k*strideD*pass_cond_k:0; 
+
+    const bool pass_cond = static_cast<bool>(pass_cond_k)&&out_passcond;          
+    return pass_cond?array[isH+isW+isD+c*strideC]:zero_point;      
 }
 
-template<typename scalar_t, typename idx_t>
-API_INLINE void get_shifted_values(idx_t i_shifted, idx_t sizeH, idx_t strideH,
-                                   idx_t j_shifted, idx_t sizeW, idx_t strideW,
-                                   idx_t k_shifted, idx_t sizeD, idx_t strideD,
-                                   idx_t c, idx_t strideC,
-                                   idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                   idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                   scalar_t* array, scalar_t zero_point, 
-                                   BIPadding padding_mode, scalar_t* output_values){
-    output_values[0] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
+
+
+template<typename scalar_t, typename idx_t,
+         int kSpatialDim = 1,
+         BIPadding padding_mode = BIPadding::Zeros>
+API_INLINE void get_shifted_values(const idx_t i_shifted, const idx_t sizeH, const idx_t strideH,
+                                   const idx_t j_shifted, const idx_t sizeW, const idx_t strideW,
+                                   const idx_t k_shifted, const idx_t sizeD, const idx_t strideD,
+                                   const idx_t c, const idx_t strideC, const bool out_passcond,
+                                   const scalar_t* const array, const scalar_t zero_point,
+                                   scalar_t* const output_values){
+    output_values[0] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
                                          k_shifted, sizeD, strideD, c, strideC,
-                                         i_left_border, j_left_border, k_left_border,
-                                         i_right_border, j_right_border, k_right_border,
-                                         array, zero_point, padding_mode);
-    output_values[1] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
+                                         out_passcond, array, zero_point);
+    output_values[1] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
                                          k_shifted, sizeD, strideD, c, strideC, 
-                                         i_left_border, j_left_border, k_left_border,
-                                         i_right_border, j_right_border, k_right_border,
-                                         array, zero_point, padding_mode);
-    if (sizeW>1){
-        output_values[2] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                                             k_shifted, sizeD, strideD, c, strideC,
-                                             i_left_border, j_left_border, k_left_border,
-                                             i_right_border, j_right_border, k_right_border,
-                                             array, zero_point, padding_mode);
-        output_values[3] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                                             k_shifted, sizeD, strideD, c, strideC,
-                                             i_left_border, j_left_border, k_left_border,
-                                             i_right_border, j_right_border, k_right_border,
-                                             array, zero_point, padding_mode);                           
+                                         out_passcond, array, zero_point);
+    if (kSpatialDim > 1){
+        output_values[2] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                         k_shifted, sizeD, strideD, c, strideC,
+                                         out_passcond, array, zero_point);
+        output_values[3] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                         k_shifted, sizeD, strideD, c, strideC,
+                                         out_passcond, array, zero_point);                           
     }
-    if (sizeD>1){
-        output_values[4] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
-                                             k_shifted+1, sizeD, strideD, c, strideC,
-                                             i_left_border, j_left_border, k_left_border,
-                                             i_right_border, j_right_border, k_right_border,
-                                             array, zero_point, padding_mode);
-        output_values[5] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
-                                             k_shifted+1, sizeD, strideD, c, strideC,
-                                             i_left_border, j_left_border, k_left_border,
-                                             i_right_border, j_right_border, k_right_border,
-                                             array, zero_point, padding_mode);
-        output_values[6] = get_shifted_value(i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                                             k_shifted+1, sizeD, strideD, c, strideC,
-                                             i_left_border, j_left_border, k_left_border,
-                                             i_right_border, j_right_border, k_right_border,
-                                             array, zero_point, padding_mode);
-        output_values[7] = get_shifted_value(i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
-                                             k_shifted+1, sizeD, strideD, c, strideC,
-                                             i_left_border, j_left_border, k_left_border,
-                                             i_right_border, j_right_border, k_right_border,
-                                             array, zero_point, padding_mode);
+    if (kSpatialDim > 2){
+        output_values[4] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
+                                         k_shifted+1, sizeD, strideD, c, strideC,
+                                         out_passcond, array, zero_point);
+        output_values[5] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted+1, sizeH, strideH, j_shifted, sizeW, strideW,
+                                         k_shifted+1, sizeD, strideD, c, strideC,
+                                         out_passcond, array, zero_point);
+        output_values[6] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                         k_shifted+1, sizeD, strideD, c, strideC,
+                                         out_passcond, array, zero_point);
+        output_values[7] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
+                                         i_shifted+1, sizeH, strideH, j_shifted+1, sizeW, strideW,
+                                         k_shifted+1, sizeD, strideD, c, strideC,
+                                         out_passcond, array, zero_point);
     }                           
 }
 
-
-template <typename scalar_t, typename idx_t>
-API_INLINE scalar_t compute_interpolated(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                          idx_t sizeH, idx_t sizeW, idx_t sizeD){
-    if (sizeD>1){return interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                 diff_shiftH, diff_shiftW, diff_shiftD);}
-    else if (sizeW>1){return interp2D(v[0], v[1], v[2], v[3], 
-                                      diff_shiftH, diff_shiftW);}
-    else {return interp1D(v[0], v[1], diff_shiftH);}
+template <typename scalar_t, bool reverse>
+API_INLINE scalar_t rev_shift(const scalar_t diff_shift){
+    return (reverse)?(static_cast<scalar_t>(1)-diff_shift):diff_shift;
 }
 
-template <typename scalar_t, typename idx_t>
-API_INLINE void compute_weight_gradients(scalar_t* v, scalar_t diff_shiftH, scalar_t diff_shiftW, scalar_t diff_shiftD,
-                                          idx_t sizeH, idx_t sizeW, idx_t sizeD, scalar_t* output_grad){
-    if (sizeD>1){
-        output_grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                   diff_shiftW, diff_shiftD);
-        output_grad[1]=interp3D_dy(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                   diff_shiftH, diff_shiftD);
-        output_grad[2]=interp3D_dz(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                   diff_shiftH, diff_shiftW);
-    }
-    else if (sizeW>1){
-        output_grad[0]=interp2D_dx(v[0], v[1], v[2], v[3], 
-                                   diff_shiftW);
-        output_grad[1]=interp2D_dy(v[0], v[1], v[2], v[3], 
-                                   diff_shiftH);
-    }
-    else if (sizeH>1){
-        output_grad[0]=interp1D_dx(v[0], v[1]);
+template <typename scalar_t, typename idx_t, int kSpatialDim = 1, bool reverse = false>
+API_INLINE scalar_t compute_interpolated(const scalar_t* const v, const scalar_t diff_shiftH, 
+                                         const scalar_t diff_shiftW, const scalar_t diff_shiftD,
+                                         const bool pass_cond, const scalar_t zp){
+    switch (kSpatialDim){        
+        case 3:
+            return pass_cond?interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                      rev_shift<scalar_t,reverse>(diff_shiftH), 
+                                      rev_shift<scalar_t,reverse>(diff_shiftW),
+                                      rev_shift<scalar_t,reverse>(diff_shiftD)):
+                             zp;
+        case 2:
+            return pass_cond?interp2D(v[0], v[1], v[2], v[3], 
+                                     rev_shift<scalar_t,reverse>(diff_shiftH), 
+                                     rev_shift<scalar_t,reverse>(diff_shiftW)):
+                             zp;
+        default:
+            return pass_cond?interp1D(v[0], v[1], rev_shift<scalar_t,reverse>(diff_shiftH)):
+                             zp;
     }
 }
 
-template <typename scalar_t, typename idx_t>
-API_INLINE void shift_forward_kernel_nchwd(scalar_t* input, scalar_t* output,
-                                           idx_t* weights, scalar_t* dweights,
-                                           idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
-                                           idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                           idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                           idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
-                                           idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
-                                           idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                           idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                           BIPadding padding_mode, bool active){
-    scalar_t *input_NC = input + n*input_sN + c*input_sC;
-    idx_t oi = i;
-    idx_t oj = j;
-    idx_t ok = k;
-    bool cond_i = (i >= i_left_border)&&(i < i_right_border);
-    bool cond_j = (j >= j_left_border)&&(j < j_right_border);
-    bool cond_k = (k >= k_left_border)&&(k < k_right_border);
-    if (cond_i&&cond_j&&cond_k){
-      oi -= i_left_border;
-      oj -= j_left_border;
-      ok -= k_left_border;
-      scalar_t *output_NCHWD= output + n*output_sN + c*output_sC + oi*output_sH + oj*output_sW + ok*output_sD;
-      scalar_t val;
-      scalar_t zp = static_cast<scalar_t>(0);
-      idx_t shifts[3] = {*(weights+c*weights_sC), 0, 0};
-      if (sizeW>1){shifts[1] = *(weights+c*weights_sC+weights_sS);}
-      if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sS);}
-      if (active)
-      {    
-          scalar_t _vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
-          get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                             j-shifts[1], sizeW, input_sW,
-                                             k-shifts[2], sizeD, input_sD,
-                                             0, 0, 0, 0, 0, sizeH, sizeW, sizeD,
-                                             input_NC, zp, padding_mode, _vals_array);
-          scalar_t dshifts[3] = {*(dweights + c*dweights_sC), zp, zp};
-          if (sizeW>1){dshifts[1] = *(dweights + c*dweights_sC + dweights_sS);}
-          if (sizeD>1){dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
-          val = compute_interpolated<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                     sizeH, sizeW, sizeD);
-       }
-       else {   
-          val = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                  j-shifts[1], sizeW, input_sW,
-                                                  k-shifts[2], sizeD, input_sD,
-                                                  0, 0, 0, 0, 0, sizeH, sizeW, sizeD,
-                                                  input_NC, zp, padding_mode);  
-       }
-       *output_NCHWD = val;
+template <typename scalar_t, typename idx_t, int kSpatialDim = 1>
+API_INLINE void compute_weight_gradients(const scalar_t* const v, const scalar_t diff_shiftH, const scalar_t diff_shiftW, const scalar_t diff_shiftD,
+                                         scalar_t* const output_grad){
+    switch (kSpatialDim){        
+        case 3:
+            output_grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                    diff_shiftW, diff_shiftD);
+            output_grad[1]=interp3D_dy(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                    diff_shiftH, diff_shiftD);
+            output_grad[2]=interp3D_dz(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                    diff_shiftH, diff_shiftW);
+            break;
+        case 2:
+            output_grad[0]=interp2D_dx(v[0], v[1], v[2], v[3], 
+                                    diff_shiftW);
+            output_grad[1]=interp2D_dy(v[0], v[1], v[2], v[3], 
+                                    diff_shiftH);
+            break;
+        case 1:
+            output_grad[0]=interp1D_dx(v[0], v[1]);
+            break;
     }
 }
 
-template <typename scalar_t, typename idx_t>
+template <typename scalar_t, typename idx_t,
+          int kSpatialDim = 1,
+          BIPadding padding_mode = BIPadding::Zeros,
+          bool active = false>
+API_INLINE void shift_forward_kernel_nchwd(const scalar_t* const input, scalar_t* const output,
+                                           const idx_t* const weights, const scalar_t* const dweights,
+                                           const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
+                                           const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                           const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, const idx_t input_sW, const idx_t input_sD,
+                                           const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, const idx_t output_sW, const idx_t output_sD,
+                                           const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, const idx_t dweights_sS,
+                                           const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                           const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+    const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
+    const scalar_t zp = static_cast<scalar_t>(0);
+              
+    const idx_t oi = i - i_left_border;
+    const idx_t oj = (kSpatialDim > 1) ? (j - j_left_border) : j; 
+    const idx_t ok = (kSpatialDim > 2) ? (k - k_left_border) : k;
+    
+    const idx_t si = i - *(weights+c*weights_sC);
+    const idx_t sj = (kSpatialDim > 1) ? (j - *(weights+c*weights_sC+weights_sS)) : j;
+    const idx_t sk = (kSpatialDim > 2) ? (k - *(weights+c*weights_sC+2*weights_sS)) : k;       
+     
+
+    const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
+    const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
+    const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
+
+    if (pass_cond){       
+        if (active)
+        {   
+            const scalar_t di = *(dweights + c*dweights_sC);
+            const scalar_t dj = (kSpatialDim > 1) ? *(dweights + c*dweights_sC + dweights_sS) : zp;
+            const scalar_t dk = (kSpatialDim > 2) ?  *(dweights + c*dweights_sC + 2*dweights_sS): zp;
+            scalar_t vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
+            get_shifted_values<scalar_t,idx_t,kSpatialDim, padding_mode>(
+                                            si, sizeH, input_sH,
+                                            sj, sizeW, input_sW,
+                                            sk, sizeD, input_sD,
+                                            0, 0, true, 
+                                            input_NC, zp, vals_array);
+            *(output + n*output_sN +
+                       c*output_sC +
+                      oi*output_sH + 
+                      oj*output_sW + 
+                      ok*output_sD) = compute_interpolated<scalar_t,idx_t,kSpatialDim,false>(
+                                                          vals_array, di, dj, dk,
+                                                          true, zp);
+        }
+        else {
+            *(output + n*output_sN +
+                       c*output_sC +
+                      oi*output_sH + 
+                      oj*output_sW + 
+                      ok*output_sD) = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                                        si, sizeH, input_sH,
+                                                        sj, sizeW, input_sW,
+                                                        sk, sizeD, input_sD,
+                                                        0, 0, true, 
+                                                        input_NC, zp);  
+        }
+    }
+}
+
+template <typename scalar_t, typename idx_t,
+          int kSpatialDim = 1,
+          BIPadding padding_mode = BIPadding::Zeros,
+          bool active = false>
 API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
                                             idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
                                             idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
@@ -213,259 +232,388 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
                                             idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
                                             idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
                                             idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                            idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                            BIPadding padding_mode, bool active){
-    scalar_t *input_grad_NC = input_grad + n*input_grad_sN + c*input_grad_sC;
-    scalar_t *input_NC = input + n*input_sN + c*input_sC;
-    idx_t oi = i+i_left_border;
-    idx_t oj = j+j_left_border;
-    idx_t ok = k+k_left_border;
-    scalar_t input_grad_NCHWD_val = input_grad_NC[i*input_grad_sH + j*input_grad_sW + k*input_grad_sD];
-    scalar_t *output_grad_NCHWD= output_grad + n*output_grad_sN + c*output_grad_sC + oi*output_grad_sH + oj*output_grad_sW + ok*output_grad_sD;                                   
-    scalar_t zp = static_cast<scalar_t>(0);
-    scalar_t _vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
-    idx_t shifts[3] = {*(weights + c*weights_sC), 0, 0};
-    scalar_t dshifts[3] = {*(dweights + c*dweights_sC), zp, zp};
-    if (sizeW>1){
-        shifts[1] = *(weights + c*weights_sC + weights_sS);       
-        dshifts[1] = *(dweights + c*dweights_sC + dweights_sS);}
-    if (sizeD>1){
-        shifts[2] = *(weights + c*weights_sC + 2*weights_sS);        
-        dshifts[2] = *(dweights + c*dweights_sC + 2*dweights_sS);}
+                                            idx_t i_right_border, idx_t j_right_border, idx_t k_right_border){
+    // i,j,k - from input
+    const scalar_t* const input_grad_NC = input_grad + n*input_grad_sN + c*input_grad_sC;
+    const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
+    const scalar_t zp = static_cast<scalar_t>(0);
+       
+    const idx_t shifti = *(weights+c*weights_sC);
+    const idx_t shiftj = (kSpatialDim > 1)?*(weights+c*weights_sC + weights_sS):0;
+    const idx_t shiftk = (kSpatialDim > 2)?*(weights + c*weights_sC + 2*weights_sS):0;
+              
+    const scalar_t di = *(dweights + c*dweights_sC);
+    const scalar_t dj = (kSpatialDim > 1)?*(dweights + c*dweights_sC + dweights_sS):zp;
+    const scalar_t dk = (kSpatialDim > 2)?*(dweights + c*dweights_sC + 2*dweights_sS):zp;
+
+    const idx_t si = i - shifti;
+    const idx_t sj = (kSpatialDim > 1) ? (j - shiftj) : j;
+    const idx_t sk = (kSpatialDim > 2) ? (k - shiftk) : k;       
+    
+    const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
+    const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
+    const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
+
+
+    const idx_t oi = i - i_left_border;
+    const idx_t oj = (kSpatialDim > 1) ? (j - j_left_border) : j; 
+    const idx_t ok = (kSpatialDim > 2) ? (k - k_left_border) : k; 
+
+    scalar_t vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
+    scalar_t new_weights_grad[3] = {zp, zp, zp};  
+    const scalar_t input_grad_NCHWD_val = pass_cond?input_grad_NC[oi*input_grad_sH + oj*input_grad_sW + ok*input_grad_sD]:zp;
+    
+    // weight gradients
+    get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                        si, sizeH, input_sH,
+                                        sj, sizeW, input_sW,
+                                        sk, sizeD, input_sD,
+                                        0, 0, pass_cond,                                       
+                                        input_NC, zp, vals_array);                         
+    compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad);    
+    ADD((weights_grad + c*weights_grad_sC),(input_grad_NCHWD_val * new_weights_grad[0]));
+    if (kSpatialDim > 1){ADD((weights_grad + c*weights_grad_sC + weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[1]));}
+    if (kSpatialDim > 2){ADD((weights_grad + c*weights_grad_sC + 2*weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[2]));}
+    
+    // input gradient
+        
+    const idx_t rsi = oi + shifti;
+    const idx_t rsj = (kSpatialDim > 1)?(oj + shiftj):j;
+    const idx_t rsk = (kSpatialDim > 2)?(ok + shiftk):k;
+    
+    const idx_t osizeH = i_right_border - i_left_border;
+    const idx_t osizeW = j_right_border - j_left_border;
+    const idx_t osizeD = k_right_border - k_left_border;
+    
     if (active)
     {
-        get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_grad_sH,
-                                           j-shifts[1], sizeW, input_grad_sW,
-                                           k-shifts[2], sizeD, input_grad_sD,
-                                           0, 0, i_left_border, j_left_border, k_left_border,
-                                           i_right_border, j_right_border, k_right_border,
-                                           input_grad_NC, zp, padding_mode, _vals_array);
-        *output_grad_NCHWD = compute_interpolated<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                                  sizeH, sizeW, sizeD);
-    } 
-    else {                                                              
-        *output_grad_NCHWD = get_shifted_value<scalar_t,idx_t>(i+shifts[0], sizeH, input_grad_sH,
-                                                               j+shifts[1], sizeW, input_grad_sW,
-                                                               k+shifts[2], sizeD, input_grad_sD,
-                                                               0, 0, i_left_border, j_left_border, k_left_border,
-                                                               i_right_border, j_right_border, k_right_border,
-                                                               input_grad_NC, zp, padding_mode);
+        get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                        rsi, osizeH, input_grad_sH,
+                                        rsj, osizeW, input_grad_sW,
+                                        rsk, osizeD, input_grad_sD,
+                                        0, 0, pass_cond,
+                                        input_grad_NC, zp, vals_array);
+         *(output_grad + n*output_grad_sN +
+                         c*output_grad_sC +
+                         i*output_grad_sH + 
+                         j*output_grad_sW + 
+                         k*output_grad_sD) = compute_interpolated<scalar_t,idx_t,kSpatialDim,true>(
+                                                            vals_array, di, dj, dk, pass_cond, zp);
     }
-    get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                       j-shifts[1], sizeW, input_sW,
-                                       k-shifts[2], sizeD, input_sD,
-                                       0, 0, 0, 0, 0, sizeH, sizeW, sizeD,                                       
-                                       input_NC, zp, padding_mode, _vals_array);
-    scalar_t _new_weights_grad[3] = {zp, zp, zp};                                   
-    compute_weight_gradients<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                             sizeH, sizeW, sizeD, _new_weights_grad);
-    ADD((weights_grad + c*weights_grad_sC),(input_grad_NCHWD_val * _new_weights_grad[0]));
-    if (sizeW>1){ADD((weights_grad + c*weights_grad_sC + weights_grad_sS),(input_grad_NCHWD_val * _new_weights_grad[1]));}
-    if (sizeD>1){ADD((weights_grad + c*weights_grad_sC + 2*weights_grad_sS),(input_grad_NCHWD_val * _new_weights_grad[2]));}
+    else {
+        *(output_grad + n*output_grad_sN +
+                        c*output_grad_sC +
+                        i*output_grad_sH + 
+                        j*output_grad_sW + 
+                        k*output_grad_sD) = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                                              rsi, osizeH, input_grad_sH,
+                                                              rsj, osizeW, input_grad_sW,
+                                                              rsk, osizeD, input_grad_sD,
+                                                              0, 0, pass_cond,
+                                                              input_grad_NC, zp);        
+    }
+    
 }
 
 
-template <typename scalar_t, typename idx_t>
-API_INLINE void shift_forward_kernel_nhwdc(scalar_t* input, scalar_t* output, 
-                                           idx_t* weights, scalar_t* dweights,
-                                           idx_t n, idx_t i, idx_t j, idx_t k,
-                                           idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                           idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                           idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
-                                           idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS,
-                                           idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                           idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                           BIPadding padding_mode, bool active){
-    scalar_t *input_N = input + n*input_sN;
-    idx_t oi = i;
-    idx_t oj = j;
-    idx_t ok = k;
-    bool cond_i = (i >= i_left_border)&&(i < i_right_border);
-    bool cond_j = (j >= j_left_border)&&(j < j_right_border);
-    bool cond_k = (k >= k_left_border)&&(k < k_right_border);
-    if (cond_i&&cond_j&&cond_k){
-        oi -= i_left_border;
-        oj -= j_left_border;
-        ok -= k_left_border;
+template <typename scalar_t, typename idx_t,
+          int kSpatialDim = 1,
+          BIPadding padding_mode = BIPadding::Zeros,
+          bool active = false>
+API_INLINE void shift_forward_kernel_nhwdc(const scalar_t* const input, scalar_t* const output, 
+                                           const idx_t* const weights, const scalar_t* const dweights,
+                                           const idx_t n, const idx_t i, const idx_t j, const idx_t k,
+                                           const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                           const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, const idx_t input_sW, const idx_t input_sD,
+                                           const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, const idx_t output_sW, const idx_t output_sD,
+                                           const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, const idx_t dweights_sS,
+                                           const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                           const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+    const scalar_t* input_N = input + n*input_sN;
+    const scalar_t zp = static_cast<scalar_t>(0);          
     
-        scalar_t *output_NHWD = output + n*output_sN + oi*output_sH + oj*output_sW + ok*output_sD;
-        scalar_t zp = static_cast<scalar_t>(0);
+    const idx_t oi = i - i_left_border;
+    const idx_t oj = (kSpatialDim > 1) ? j - j_left_border : j; 
+    const idx_t ok = (kSpatialDim > 2) ? k - k_left_border : k;
+                         
+    const idx_t* w_S = (kSpatialDim > 1) ? (weights+weights_sS) : nullptr;
+    const idx_t* w_2S = (kSpatialDim > 2) ? (weights+2*weights_sS) : nullptr;
+    const scalar_t* dw_S = (kSpatialDim > 1) ? (dweights+dweights_sS) : nullptr;
+    const scalar_t* dw_2S = (kSpatialDim > 2) ? (dweights+2*dweights_sS) : nullptr;     
+              
+    const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
+    const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
+    const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
+
+    if (pass_cond){           
         scalar_t val;
-        idx_t shifts[3] = {0, 0, 0};
+        idx_t si = i;
+        idx_t sj = j;
+        idx_t sk = k;
+        scalar_t di = zp;
+        scalar_t dj = zp;
+        scalar_t dk = zp;
+        scalar_t *output_NHWD = output + n*output_sN + oi*output_sH + oj*output_sW + ok*output_sD;
         for (idx_t c = 0; c < sizeC; c++)
         {
-            shifts[0] = *(weights+c*weights_sC);
-            if (sizeW>1){shifts[1] = *(weights+weights_sS+c*weights_sC);}
-            if (sizeD>1){shifts[2] = *(weights+2*weights_sS+c*weights_sC);}
+            si = i - *(weights+c*weights_sC);
+            if (kSpatialDim > 1) { sj = j - *(w_S+c*weights_sC); }
+            if (kSpatialDim > 2) { sk = k - *(w_2S+c*weights_sC); }
             if (active)
             {
+                di = *(dweights + c*dweights_sC);
+                if (kSpatialDim > 1) { dj = *(dw_S+c*dweights_sC); }
+                if (kSpatialDim > 2) { dk = *(dw_2S+c*dweights_sC); }
                 // define array here to avoid unnessary warnings, Hope the compiler can optimize it itself
-                scalar_t _vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
-                get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                   j-shifts[1], sizeW, input_sW,
-                                                   k-shifts[2], sizeD, input_sD,
-                                                   c, input_sC, 
-                                                   0, 0, 0, sizeH, sizeW, sizeD,
-                                                   input_N, zp, padding_mode, _vals_array);
-
-                val = compute_interpolated<scalar_t,idx_t>(_vals_array, *(dweights+c*dweights_sC), *(dweights+dweights_sS+c*dweights_sC),
-                                                           *(dweights+2*dweights_sS+c*dweights_sC),
-                                                           sizeH, sizeW, sizeD);
+                scalar_t vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
+                get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                            si, sizeH, input_sH,
+                                            sj, sizeW, input_sW,
+                                            sk, sizeD, input_sD,
+                                            c, input_sC, true,
+                                            input_N, zp, vals_array);
+                val = compute_interpolated<scalar_t,idx_t,kSpatialDim, false>(vals_array, di, dj, dk, true, zp);
             }
             else {   
-                val = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                        j-shifts[1], sizeW, input_sW,
-                                                        k-shifts[2], sizeD, input_sD,
-                                                        c, input_sC, 
-                                                        0, 0, 0, sizeH, sizeW, sizeD,
-                                                        input_N, zp, padding_mode);
+                val = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                            si, sizeH, input_sH,
+                                            sj, sizeW, input_sW,
+                                            sk, sizeD, input_sD,
+                                            c, input_sC, true,
+                                            input_N, zp);
             }
             output_NHWD[c*output_sC] = val;
         }
     }
 }
 
-template <typename scalar_t, typename idx_t>
-API_INLINE void shift_backward_kernel_nhwdc(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
-                                            idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
-                                            idx_t n, idx_t i, idx_t j, idx_t k,
-                                            idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                            idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
-                                            idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                            idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
-                                            idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
-                                            idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                            idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                            BIPadding padding_mode,  bool active){
-    scalar_t *input_grad_N = input_grad + n*input_grad_sN;
-    scalar_t *input_N = input + n*input_sN;
-    idx_t oi = i+i_left_border;
-    idx_t oj = j+j_left_border;
-    idx_t ok = k+k_left_border;
-    scalar_t *output_grad_NHWD= output_grad + n*output_grad_sN + oi*output_grad_sH + oj*output_grad_sW + ok*output_grad_sD;         
-    scalar_t *input_grad_NHWD = input_grad_N + i*input_grad_sH + j*input_grad_sW + k*input_grad_sD;
-    scalar_t input_grad_NHWDC_val; 
-    scalar_t zp = static_cast<scalar_t>(0);
-    idx_t shifts[3] = {0, 0, 0};
-    scalar_t dshifts[3] = {zp, zp, zp};
-    scalar_t _vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
-    scalar_t _new_weights_grad[3] = {zp, zp, zp};
+template <typename scalar_t, typename idx_t,
+          int kSpatialDim = 1,
+          BIPadding padding_mode = BIPadding::Zeros,
+          bool active = false>
+API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, const scalar_t* const input, 
+                                            scalar_t* const output_grad,
+                                            const idx_t* const weights, const scalar_t* const dweights, 
+                                            scalar_t* const weights_grad,
+                                            const idx_t n, const idx_t i, const idx_t j, const idx_t k,
+                                            const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                            const idx_t input_grad_sN, const idx_t input_grad_sC, const idx_t input_grad_sH,
+                                            const idx_t input_grad_sW, const idx_t input_grad_sD,
+                                            const idx_t input_sN, const idx_t input_sC, const idx_t input_sH,
+                                            const idx_t input_sW, const idx_t input_sD,
+                                            const idx_t output_grad_sN, const idx_t output_grad_sC, const idx_t output_grad_sH,
+                                            const idx_t output_grad_sW, const idx_t output_grad_sD,
+                                            const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, 
+                                            const idx_t dweights_sS, const idx_t weights_grad_sC, const idx_t weights_grad_sS,
+                                            const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                            const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+    const scalar_t* const input_grad_N = input_grad + n*input_grad_sN;
+    const scalar_t* const input_N = input + n*input_sN;
+    const scalar_t zp = static_cast<scalar_t>(0);
+    scalar_t vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
+    scalar_t new_weights_grad[3] = {zp, zp, zp};
+    scalar_t input_grad_NHWDC_val;
+    
+    idx_t shifti = 0;
+    idx_t shiftj = 0;
+    idx_t shiftk = 0;
+    
+    scalar_t di = zp;
+    scalar_t dj = zp;
+    scalar_t dk = zp;
+
+    idx_t si = i;
+    idx_t sj = j;
+    idx_t sk = k;       
+    
+    const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
+    const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
+    const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
+    
+    const idx_t oi = i - i_left_border;
+    const idx_t oj = (kSpatialDim > 1) ? (j - j_left_border) : j; 
+    const idx_t ok = (kSpatialDim > 2) ? (k - k_left_border) : k;    
+    const scalar_t* input_grad_NHWD = input_grad_N + (pass_cond?(oi*input_grad_sH + oj*input_grad_sW + ok*input_grad_sD):0);
+    
+    idx_t rsi = oi;
+    idx_t rsj = oj;
+    idx_t rsk = ok;
+    
+    const idx_t osizeH = i_right_border - i_left_border;
+    const idx_t osizeW = j_right_border - j_left_border;
+    const idx_t osizeD = k_right_border - k_left_border;
+                  
+    const idx_t* w_S = (kSpatialDim > 1) ? (weights+weights_sS) : nullptr;
+    const idx_t* w_2S = (kSpatialDim > 2) ? (weights+2*weights_sS) : nullptr;
+    const scalar_t* dw_S = (kSpatialDim > 1) ? (dweights+dweights_sS) : nullptr;
+    const scalar_t* dw_2S = (kSpatialDim > 2) ? (dweights+2*dweights_sS) : nullptr;
+    
+    scalar_t* output_grad_NHWD= output_grad + n*output_grad_sN + i*output_grad_sH + j*output_grad_sW + k*output_grad_sD;
+    
     for (idx_t c = 0; c < sizeC; c++)
     {
-        shifts[0] = *(weights + c*weights_sC);
-        dshifts[3] = *(dweights + c*dweights_sC);
-        if (sizeW>1){
-            shifts[1] = *(weights+weights_sS+c*weights_sC);         
-            dshifts[1] = *(dweights+dweights_sS+c*dweights_sC);}
-        if (sizeD>1){
-            shifts[2] =  *(weights+2*weights_sS+c*weights_sC);         
-            dshifts[2] = *(dweights+2*dweights_sS+c*dweights_sC);}
+        shifti = *(weights+c*weights_sC);
+        di = *(dweights+c*dweights_sC);
+        si = i - shifti;
+        rsi = oi + shifti;
+        if (kSpatialDim > 1) {
+            shiftj = *(w_S+c*weights_sC);
+            dj = *(dw_S+c*dweights_sC);
+            sj = j - shiftj;
+            rsj = oj + shiftj;
+        }
+        if (kSpatialDim > 2) {
+            shiftk = *(w_2S+c*weights_sC);
+            dk = *(dw_2S+c*dweights_sC);
+            sk = k - shiftk;
+            rsk = ok + shiftk;
+        }
+        // weight gradients
+        get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                            si, sizeH, input_sH,
+                                            sj, sizeW, input_sW,
+                                            sk, sizeD, input_sD,
+                                            c, input_sC, pass_cond,                                       
+                                            input_N, zp, vals_array);                         
+        compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad);  
+        input_grad_NHWDC_val = input_grad_NHWD[c*input_grad_sC];
+        ADD((weights_grad + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[0]));
+        if (kSpatialDim > 1){ADD((weights_grad + weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[1]));}
+        if (kSpatialDim > 2){ADD((weights_grad + 2*weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[2]));}
+        
+        
+        // input gradient
         if (active)
         {
-            get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_grad_sH,
-                                               j-shifts[1], sizeW, input_grad_sW,
-                                               k-shifts[2], sizeD, input_grad_sD,
-                                               c, input_grad_sC, i_left_border, j_left_border, k_left_border,
-                                               i_right_border, j_right_border, k_right_border,    
-                                               input_grad_N, zp, padding_mode, _vals_array);
-            *(output_grad_NHWD+c*output_grad_sC) = compute_interpolated<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                                                        sizeH, sizeW, sizeD);
+            get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                            rsi, osizeH, input_grad_sH,
+                                            rsj, osizeW, input_grad_sW,
+                                            rsk, osizeD, input_grad_sD,
+                                            c, input_grad_sC, pass_cond,
+                                            input_grad_N, zp, vals_array);
+            *(output_grad_NHWD+c*output_grad_sC) = compute_interpolated<scalar_t,idx_t,kSpatialDim,true>(
+                                                                        vals_array, di, dj, dk, pass_cond, zp);
         }
         else {
-            *(output_grad_NHWD+c*output_grad_sC) =  get_shifted_value<scalar_t,idx_t>(i+shifts[0], sizeH, input_grad_sH,
-                                                                                      j+shifts[1], sizeW, input_grad_sW,
-                                                                                      k+shifts[2], sizeD, input_grad_sD,
-                                                                                      c, input_grad_sC, i_left_border, j_left_border, k_left_border,
-                                                                                      i_right_border, j_right_border, k_right_border,
-                                                                                      input_grad_N, zp, padding_mode);
-        }
-        get_shifted_values<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                           j-shifts[1], sizeW, input_sW,
-                                           k-shifts[2], sizeD, input_sD,
-                                           c, input_sC, 0, 0, 0, sizeH, sizeW, sizeD,
-                                           input_N, zp, padding_mode, _vals_array);
-        compute_weight_gradients<scalar_t,idx_t>(_vals_array, dshifts[0], dshifts[1], dshifts[2],
-                                                 sizeH, sizeW, sizeD, _new_weights_grad);
-        input_grad_NHWDC_val = input_grad_NHWD[c*input_grad_sC];
-        ADD((weights_grad + c*weights_grad_sC),(input_grad_NHWDC_val * _new_weights_grad[0]));
-        if (sizeW>1){ADD((weights_grad + weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * _new_weights_grad[1]));}
-        if (sizeD>1){ADD((weights_grad + 2*weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * _new_weights_grad[2]));}
+            *(output_grad_NHWD+c*output_grad_sC) = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                                                        rsi, osizeH, input_grad_sH,
+                                                                        rsj, osizeW, input_grad_sW,
+                                                                        rsk, osizeD, input_grad_sD,
+                                                                        c, input_grad_sC, pass_cond,
+                                                                        input_grad_N, zp);        
+        }        
     }
 }
 
 
 /////////QUANTIZED
-
-template <typename scalar_t, typename idx_t>
-API_INLINE void shift_forward_kernel_nchwd_q(scalar_t* input, scalar_t* output,
-                                             idx_t* weights,
-                                             idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
-                                             idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                             idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                             idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
-                                             idx_t weights_sC, idx_t weights_sS,
-                                             idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                             idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                             scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
-    scalar_t *input_NC = input + n*input_sN + c*input_sC;
-    idx_t oi = i;
-    idx_t oj = j;
-    idx_t ok = k;
-    bool cond_i = (i >= i_left_border)&&(i < i_right_border);
-    bool cond_j = (j >= j_left_border)&&(j < j_right_border);
-    bool cond_k = (k >= k_left_border)&&(k < k_right_border);
-    if (cond_i&&cond_j&&cond_k){
-        oi -= i_left_border;
-        oj -= j_left_border;
-        ok -= k_left_border;
-        scalar_t *output_NCHWD= output + n*output_sN + c*output_sC + oi*output_sH + oj*output_sW + ok*output_sD;
-        idx_t shifts[3] = {*(weights+c*weights_sC) - weights_zero_point, 0, 0};
-        if (sizeW>1){shifts[1] = *(weights+c*weights_sC+weights_sS) - weights_zero_point;}
-        if (sizeD>1){shifts[2] = *(weights+c*weights_sC+2*weights_sS) - weights_zero_point;}
-        *output_NCHWD = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                          j-shifts[1], sizeW, input_sW,
-                                                          k-shifts[2], sizeD, input_sD,
-                                                          0, 0, 0, 0, 0, sizeH, sizeW, sizeD,
-                                                          input_NC, zero_point, padding_mode);
+template <typename scalar_t, typename idx_t,
+          int kSpatialDim = 1,
+          BIPadding padding_mode = BIPadding::Zeros>
+API_INLINE void shift_forward_kernel_nchwd_q(const scalar_t* const input, scalar_t* const output,
+                                             const idx_t* const weights,
+                                             const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
+                                             const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                             const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
+                                             const idx_t input_sW, const idx_t input_sD,
+                                             const idx_t output_sN, const idx_t output_sC, const idx_t output_sH,
+                                             const idx_t output_sW, const idx_t output_sD,
+                                             const idx_t weights_sC, const idx_t weights_sS,
+                                             const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                             const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border,
+                                             const scalar_t zero_point, const idx_t weights_zero_point){
+    const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
+              
+    const idx_t oi = i - i_left_border;
+    const idx_t oj = (kSpatialDim > 1) ? (j - j_left_border) : j; 
+    const idx_t ok = (kSpatialDim > 2) ? (k - k_left_border) : k;
+    
+    const idx_t si = i - *(weights+c*weights_sC) + weights_zero_point;
+    const idx_t sj = (kSpatialDim > 1) ? (j - *(weights+c*weights_sC+weights_sS) + weights_zero_point) : j;
+    const idx_t sk = (kSpatialDim > 2) ? (k - *(weights+c*weights_sC+2*weights_sS) + weights_zero_point) : k;           
+    
+    const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
+    const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
+    const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
+    
+    if (pass_cond) {
+        scalar_t* output_NCHWD = output + n*output_sN + c*output_sC + oi*output_sH + oj*output_sW + ok*output_sD;
+        *output_NCHWD = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                           si, sizeH, input_sH,
+                                           sj, sizeW, input_sW,
+                                           sk, sizeD, input_sD,
+                                           0, 0, true, 
+                                           input_NC, zero_point); 
     }
 }
 
 
-template <typename scalar_t, typename idx_t>
-API_INLINE void shift_forward_kernel_nhwdc_q(scalar_t* input, scalar_t* output, 
-                                             idx_t* weights,
-                                             idx_t n, idx_t i, idx_t j, idx_t k,
-                                             idx_t sizeC, idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                             idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                             idx_t output_sN, idx_t output_sC, idx_t output_sH, idx_t output_sW, idx_t output_sD,
-                                             idx_t weights_sC, idx_t weights_sS,
-                                             idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                             idx_t i_right_border, idx_t j_right_border, idx_t k_right_border,
-                                             scalar_t zero_point, idx_t weights_zero_point, BIPadding padding_mode){
-    scalar_t *input_N = input + n*input_sN;
-    idx_t oi = i;
-    idx_t oj = j;
-    idx_t ok = k;
-    bool cond_i = (i >= i_left_border)&&(i < i_right_border);
-    bool cond_j = (j >= j_left_border)&&(j < j_right_border);
-    bool cond_k = (k >= k_left_border)&&(k < k_right_border);
-    if (cond_i&&cond_j&&cond_k){
-        oi -= i_left_border;
-        oj -= j_left_border;
-        ok -= k_left_border;
+template <typename scalar_t, typename idx_t,
+          int kSpatialDim = 1,
+          BIPadding padding_mode = BIPadding::Zeros>
+API_INLINE void shift_forward_kernel_nhwdc_q(const scalar_t* const input, scalar_t* const output, 
+                                             const idx_t* const weights,
+                                             const idx_t n, const idx_t i, const idx_t j, const idx_t k,
+                                             const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                             const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
+                                             const idx_t input_sW, const idx_t input_sD,
+                                             const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, 
+                                             const idx_t output_sW, const idx_t output_sD,
+                                             const idx_t weights_sC, const idx_t weights_sS,
+                                             const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                             const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border,
+                                             const scalar_t zero_point, const idx_t weights_zero_point){
+    const scalar_t* input_N = input + n*input_sN;
+              
+    const idx_t oi = i - i_left_border;
+    const idx_t oj = (kSpatialDim > 1) ? j - j_left_border : j; 
+    const idx_t ok = (kSpatialDim > 2) ? k - k_left_border : k;
+                 
+    const idx_t* w_S = (kSpatialDim > 1) ? (weights+weights_sS) : nullptr;
+    const idx_t* w_2S = (kSpatialDim > 2) ? (weights+2*weights_sS) : nullptr;
+       
+    
+    const bool pass_cond_i = (i >= i_left_border)&&(i < i_right_border);
+    const bool pass_cond_j = (j >= j_left_border)&&(j < j_right_border);
+    const bool pass_cond_k = (k >= k_left_border)&&(k < k_right_border);
+    const bool pass_cond = pass_cond_i&&pass_cond_j&&pass_cond_k;
+    
+    if (pass_cond) {
+        scalar_t val;
+        idx_t si = i;
+        idx_t sj = j;
+        idx_t sk = k;
         scalar_t *output_NHWD = output + n*output_sN + oi*output_sH + oj*output_sW + ok*output_sD;
-        idx_t shifts[3] = {0, 0, 0};
         for (idx_t c = 0; c < sizeC; c++)
         {
-            shifts[0] = *(weights+c*weights_sC) - weights_zero_point;
-            if (sizeW>1){shifts[1] = *(weights+weights_sS+c*weights_sC) - weights_zero_point;}
-            if (sizeD>1){shifts[2] = *(weights+2*weights_sS+c*weights_sC) - weights_zero_point;}
-             output_NHWD[c*output_sC] = get_shifted_value<scalar_t,idx_t>(i-shifts[0], sizeH, input_sH,
-                                                                          j-shifts[1], sizeW, input_sW,
-                                                                          k-shifts[2], sizeD, input_sD,
-                                                                          c, input_sC, 0, 0, 0, sizeH, sizeW, sizeD,
-                                                                          input_N, zero_point, padding_mode);
-         }
+            si = i - *(weights+c*weights_sC) + weights_zero_point;
+            if (kSpatialDim > 1){ sj = j - *(w_S+c*weights_sC) + weights_zero_point; }
+            if (kSpatialDim > 2){ sk = k - *(w_2S+c*weights_sC) + weights_zero_point; }
+            val = get_shifted_value<scalar_t,idx_t,kSpatialDim,padding_mode>(
+                                               si, sizeH, input_sH,
+                                               sj, sizeW, input_sW,
+                                               sk, sizeD, input_sD,
+                                               c, input_sC, true,
+                                               input_N, zero_point);
+            output_NHWD[c*output_sC] = val;
+        }
     }
 }
 
+
+// Weights Init
+
+template <typename scalar_t, typename idx_t,
+          bool active = false>
+API_INLINE void weight_init_kernel(const scalar_t* const src, idx_t* const iw, scalar_t* const dw,
+                                   const idx_t i)
+{
+    iw[i] = static_cast<idx_t>(active?FLOOR(*(src+i)):ROUND(*(src+i)));
+    if (active){
+        dw[i] = *(src+i) - static_cast<scalar_t>(iw[i]);
+    }
+}

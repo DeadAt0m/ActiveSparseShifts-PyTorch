@@ -18,7 +18,7 @@
 
 
 #include <cmath>
-#ifdef _SHIFTS_CPU
+#if defined(_SHIFTS_CPU) || defined(_SHIFTS_QCPU)
     #define ROUND(a) (std::round(a))
     #define FLOOR(a) (std::floor(a))
     #define MIN(a,b) (std::min(a,b))
@@ -39,9 +39,9 @@
 
     const int LOCAL_CUDA_NUM_THREADS = CUDA_THREADS;
     // taken from PyTorch
-    inline int GET_CUDA_BLOCKS(const int64_t N)
+    inline int CUDA_BLOCKS(const int64_t N, const int64_t NUMTHREADS)
     {
-        return static_cast<int>(N / LOCAL_CUDA_NUM_THREADS + (N % LOCAL_CUDA_NUM_THREADS == 0 ? 0 : 1));
+        return static_cast<int>(N / NUMTHREADS + ((N % NUMTHREADS) == 0 ? 0 : 1));
     }
 #endif
 

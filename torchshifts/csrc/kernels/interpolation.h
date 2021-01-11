@@ -32,31 +32,31 @@ API_INLINE scalar_t interp2D_dy(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t 
 
 template<typename scalar_t>
 API_INLINE scalar_t interp3D(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4,
-                                             scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
-                                             scalar_t x, scalar_t y, scalar_t z){
+                             scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
+                             scalar_t x, scalar_t y, scalar_t z){
     return interp1D(interp2D(v1, v2, v3, v4, x, y), interp2D(v5, v6, v7, v8, x, y), z);
 }
 
 template<typename scalar_t>
 API_INLINE scalar_t interp3D_dx(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4,
-                                                scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
-                                                scalar_t y, scalar_t z)
+                                scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
+                                scalar_t y, scalar_t z)
 {
     return interp1D(interp2D_dx(v1, v2, v3, v4, y), interp2D_dx(v5, v6, v7, v8, y), z);
 }
 
 template<typename scalar_t>
 API_INLINE scalar_t interp3D_dy(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4,
-                                                scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
-                                                scalar_t x, scalar_t z)
+                                scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
+                                scalar_t x, scalar_t z)
 {
     return interp1D(interp2D_dy(v1, v2, v3, v4, x), interp2D_dy(v5, v6, v7, v8, x), z);
 }
 
 template<typename scalar_t>
 API_INLINE scalar_t interp3D_dz(scalar_t v1, scalar_t v2, scalar_t v3, scalar_t v4,
-                                                scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
-                                                scalar_t x, scalar_t y)
+                                scalar_t v5, scalar_t v6, scalar_t v7, scalar_t v8,
+                                scalar_t x, scalar_t y)
 {
     return interp1D_dx(interp2D(v1, v2, v3, v4, x, y), interp2D(v5, v6, v7, v8, x, y));
 }
