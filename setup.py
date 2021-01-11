@@ -66,7 +66,7 @@ def get_extensions():
     extension = CppExtension
 
     define_macros = []
-    extra_compile_args = {'cxx':[f'-std={STD_VERSION}']}
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-O3']}
 
     parallel_method = ['-DAT_PARALLEL_NATIVE=1']
     if sys.platform == 'win32':
@@ -84,7 +84,9 @@ def get_extensions():
         extension = CUDAExtension
         sources += list((extensions_dir / 'cuda').glob('*.cu'))
         define_macros += [('WITH_CUDA', None)]
-        extra_compile_args['nvcc'] = [] if os.getenv('NVCC_FLAGS', '') == '' else os.getenv('NVCC_FLAGS', '').split(' ')
+        extra_compile_args['nvcc'] = ['-O3', '-DNDEBUG']
+        if os.getenv('NVCC_FLAGS', '') != '':
+            extra_compile_args['nvcc'].extend(os.getenv('NVCC_FLAGS', '').split(' '))
   
 
     sources = list(map(lambda x: str(x.resolve()), sources))

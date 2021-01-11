@@ -82,30 +82,33 @@ __global__ void _shifts_cuda(const idx_t sizeNC,
     const idx_t k_left_border =  kSpatialDim < 3 ? 0 : borders_data[4];
     const idx_t k_right_border =  kSpatialDim < 3 ? 1 : borders_data[5];
 
-//     const idx_t sizeDW = sizeD*sizeW;
-    
-    idx_t nc = blockIdx.x * blockDim.x + threadIdx.x;
-    const idx_t c = nc / sizeN;
-    const idx_t n = nc / sizeC;
-    idx_t i = blockIdx.y * blockDim.y + threadIdx.y;
-    idx_t jk = (kSpatialDim > 1)?(blockIdx.z * blockDim.z + threadIdx.z):0;
-    const idx_t j = (kSpatialDim > 1)?(jk / sizeD):0;
-    const idx_t k = (kSpatialDim > 2)?(jk / sizeW):0;
-    shift_forward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(
-        input_ptr, output_ptr, weights_ptr, dweights_ptr,
-        n, c, i, j, k, sizeH, sizeW, sizeD,
-        input_sN, input_sC, input_sH, input_sW, input_sD,
-        output_sN, output_sC, output_sH, output_sW, output_sD,
-        weights_sC, weights_sS, dweights_sC, dweights_sS,
-        i_left_border, j_left_border, k_left_border,
-        i_right_border, j_right_border, k_right_border);
+    const idx_t sizeDW = (kSpatialDim > 1)?(sizeD*sizeW):1;
+
+    for (int nc = (blockIdx.x * blockDim.x) + threadIdx.x; nc < (sizeNC); nc += (blockDim.x * gridDim.x)){
+        const idx_t c = nc / sizeN;
+        const idx_t n = nc / sizeC;
+        for (int i = (blockIdx.y * blockDim.y) + threadIdx.y; i < (sizeH); i += (blockDim.y * gridDim.y)){
+            for (int jk = (blockIdx.z * blockDim.z) + threadIdx.z; jk < (sizeDW); jk += (blockDim.z * gridDim.z)){
+                const idx_t j = (kSpatialDim > 1)?(jk / sizeD):0;
+                const idx_t k = (kSpatialDim > 2)?(jk / sizeW):0;
+                shift_forward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(
+                    input_ptr, output_ptr, weights_ptr, dweights_ptr,
+                    n, c, i, j, k, sizeH, sizeW, sizeD,
+                    input_sN, input_sC, input_sH, input_sW, input_sD,
+                    output_sN, output_sC, output_sH, output_sW, output_sD,
+                    weights_sC, weights_sS, dweights_sC, dweights_sS,
+                    i_left_border, j_left_border, k_left_border,
+                    i_right_border, j_right_border, k_right_border);
+            }
+        }
+    }
 }
 
 template <typename scalar_t, int kSpatialDim=1, typename idx_t,
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
 C10_LAUNCH_BOUNDS_1(CUDA_THREADS)
-__global__ void _shifts_backward_cuda(const idx_t n_threads, 
+__global__ void _shifts_backward_cuda(const idx_t sizeNC, 
                                       TensorInfo<scalar_t, idx_t> grad_input,
                                       TensorInfo<idx_t, idx_t> iweights,
                                       TensorInfo<scalar_t, idx_t> dweights,
@@ -156,25 +159,29 @@ __global__ void _shifts_backward_cuda(const idx_t n_threads,
     const idx_t k_left_border =  kSpatialDim < 3 ? 0 : borders_data[4];
     const idx_t k_right_border =  kSpatialDim < 3 ? 1 : borders_data[5];
     
-    //     const idx_t sizeDW = sizeD*sizeW;
-    
-    idx_t nc = blockIdx.x * blockDim.x + threadIdx.x;
-    const idx_t c = nc / sizeN;
-    const idx_t n = nc / sizeC;
-    idx_t i = blockIdx.y * blockDim.y + threadIdx.y;
-    idx_t jk = (kSpatialDim > 1)?(blockIdx.z * blockDim.z + threadIdx.z):0;
-    const idx_t j = (kSpatialDim > 1)?(jk / sizeD):0;
-    const idx_t k = (kSpatialDim > 2)?(jk / sizeW):0;         
-    shift_backward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(
-            grad_input_ptr, input_ptr, grad_output_ptr,
-            weights_ptr, dweights_ptr, grad_weights_ptr,
-            n, c, i, j, k, sizeH, sizeW, sizeD,
-            grad_input_sN, grad_input_sC, grad_input_sH, grad_input_sW, grad_input_sD,
-            input_sN, input_sC, input_sH, input_sW, input_sD,
-            grad_output_sN, grad_output_sC, grad_output_sH, grad_output_sW, grad_output_sD,
-            weights_sC, weights_sS, dweights_sC, dweights_sS, grad_weights_sC, grad_weights_sS,
-            i_left_border, j_left_border, k_left_border,
-            i_right_border, j_right_border, k_right_border);
+    const idx_t sizeNC = sizeN*sizeC;
+    const idx_t sizeDW = (kSpatialDim > 1)?(sizeD*sizeW):1;
+
+    for (int nc = (blockIdx.x * blockDim.x) + threadIdx.x; nc < (sizeNC); nc += (blockDim.x * gridDim.x)){
+        const idx_t c = nc / sizeN;
+        const idx_t n = nc / sizeC;
+        for (int i = (blockIdx.y * blockDim.y) + threadIdx.y; i < (sizeH); i += (blockDim.y * gridDim.y)){
+            for (int jk = (blockIdx.z * blockDim.z) + threadIdx.z; jk < (sizeDW); jk += (blockDim.z * gridDim.z)){
+                const idx_t j = (kSpatialDim > 1)?(jk / sizeD):0;
+                const idx_t k = (kSpatialDim > 2)?(jk / sizeW):0;
+                shift_backward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(
+                    grad_input_ptr, input_ptr, grad_output_ptr,
+                    weights_ptr, dweights_ptr, grad_weights_ptr,
+                    n, c, i, j, k, sizeH, sizeW, sizeD,
+                    grad_input_sN, grad_input_sC, grad_input_sH, grad_input_sW, grad_input_sD,
+                    input_sN, input_sC, input_sH, input_sW, input_sD,
+                    grad_output_sN, grad_output_sC, grad_output_sH, grad_output_sW, grad_output_sD,
+                    weights_sC, weights_sS, dweights_sC, dweights_sS, grad_weights_sC, grad_weights_sS,
+                    i_left_border, j_left_border, k_left_border,
+                    i_right_border, j_right_border, k_right_border);
+            }
+        }
+    }
 }
 
 //end of anonymous namespace        
@@ -198,9 +205,7 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
     torch::checkAllSameType(c, {input_t, weights_t});
     at::cuda::CUDAGuard device_guard(input.device());
     
-    
     bool int32bit_cond = canUse32BitIndexMath(input) && canUse32BitIndexMath(weights);    
-    
 
     torch::Tensor _weights = weights.contiguous(LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor _borders = int32bit_cond?borders.to(torch::kInt):borders.to(torch::kLong);
@@ -212,7 +217,6 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
     
     int64_t count = _weights.numel();
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-
     
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(_weights.scalar_type(), 'weights_init_cuda_f', [&] {
         if (int32bit_cond){
@@ -239,15 +243,16 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
     const int64_t W = (nD<2)?1:input.size(3);
     const int64_t D = (nD<3)?1:input.size(4);
     
-    const int threads_x = 64;
-    const int threads_y = 4*((nD>1)?1:4);
-    const int threads_z = (nD>1)?4:1;
+    const int HWD_threads = 4;
+    const int threads_x = LOCAL_CUDA_NUM_THREADS / HWD_threads;
+    const int threads_y = HWD_threads*((nD>1)?1:HWD_threads);
+    const int threads_z = (nD>1)?HWD_threads:1;
               
    
     const dim3 blocks(CUDA_BLOCKS(N*C, threads_x),
                       CUDA_BLOCKS(H, threads_y),
-                      (nD>1)?CUDA_BLOCKS(W*D,threads_z):1);
-    const dim3 threads(threads_x,threads_y,threads_z);
+                      (nD>1)?CUDA_BLOCKS(W*D, threads_z):1);
+    const dim3 threads(threads_x, threads_y, threads_z);
     
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), name, [&] {
         if (int32bit_cond){
@@ -309,7 +314,6 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     
     int64_t count = _weights.numel();
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-
     
     
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(_weights.scalar_type(), 'weights_init_cuda_b', [&] {
@@ -338,16 +342,15 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     const int64_t W = (nD<2)?1:input.size(3);
     const int64_t D = (nD<3)?1:input.size(4);
      
+    const int HWD_threads = 4;
+    const int threads_x = LOCAL_CUDA_NUM_THREADS / HWD_threads;
+    const int threads_y = HWD_threads*((nD>1)?1:HWD_threads);
+    const int threads_z = (nD>1)?HWD_threads:1;
 
-    const int threads_x = 64;
-    const int threads_y = 4*((nD>1)?1:4);
-    const int threads_z = (nD>1)?4:1;
-              
-   
     const dim3 blocks(CUDA_BLOCKS(N*C, threads_x),
                       CUDA_BLOCKS(H, threads_y),
-                      (nD>1)?CUDA_BLOCKS(W*D,threads_z):1);
-    const dim3 threads(threads_x,threads_y,threads_z);
+                      (nD>1)?CUDA_BLOCKS(W*D, threads_z):1);
+    const dim3 threads(threads_x, threads_y, threads_z);
     
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(grad.scalar_type(), name, [&] {
         if (int32bit_cond){

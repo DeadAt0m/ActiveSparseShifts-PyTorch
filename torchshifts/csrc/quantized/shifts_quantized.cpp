@@ -47,25 +47,25 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
 
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d))
     {// Path for NDHWC
-//         at::parallel_for(0, sizeN, 0, [&](int64_t start, int64_t end){
-//             for (int64_t n = start; n < end; ++n) {
-//                 for (int64_t i = 0; i < sizeH; ++i){
-//                     for (int64_t j = 0; j < sizeW; ++j){
-//                         for (int64_t k = 0; k < sizeD; ++k){
-//                             shift_forward_kernel_nhwdc_q<scalar_t, int64_t, kSpatialDim, padding_mode>(
-//                                         input_ptr, output_ptr, weights_ptr,
-//                                         n, i, j, k, sizeC, sizeH, sizeW, sizeD,
-//                                         input_sN, input_sC, input_sH, input_sW, input_sD,
-//                                         output_sN, output_sC, output_sH, output_sW, output_sD,
-//                                         weights_sC, weights_sS,
-//                                         i_left_border, j_left_border, k_left_border,
-//                                         i_right_border, j_right_border, k_right_border,
-//                                         zero_point, weights_zero_point);
-//                         }
-//                     }
-//                 }
-//             }
-//         });
+        at::parallel_for(0, sizeN, 0, [&](int64_t start, int64_t end){
+            for (int64_t n = start; n < end; ++n) {
+                for (int64_t i = 0; i < sizeH; ++i){
+                    for (int64_t j = 0; j < sizeW; ++j){
+                        for (int64_t k = 0; k < sizeD; ++k){
+                            shift_forward_kernel_nhwdc_q<scalar_t, int64_t, kSpatialDim, padding_mode>(
+                                        input_ptr, output_ptr, weights_ptr,
+                                        n, i, j, k, sizeC, sizeH, sizeW, sizeD,
+                                        input_sN, input_sC, input_sH, input_sW, input_sD,
+                                        output_sN, output_sC, output_sH, output_sW, output_sD,
+                                        weights_sC, weights_sS,
+                                        i_left_border, j_left_border, k_left_border,
+                                        i_right_border, j_right_border, k_right_border,
+                                        zero_point, weights_zero_point);
+                        }
+                    }
+                }
+            }
+        });
     } else
     {
         at::parallel_for(0, sizeN*sizeC, 0, [&](int64_t start, int64_t end){
