@@ -84,7 +84,7 @@ def get_extensions():
         extension = CUDAExtension
         sources += list((extensions_dir / 'cuda').glob('*.cu'))
         define_macros += [('WITH_CUDA', None)]
-        extra_compile_args['nvcc'] = ['-O3', '-DNDEBUG']
+        extra_compile_args['nvcc'] = ['-O3', '-DNDEBUG', '--expt-extended-lambda']
         if os.getenv('NVCC_FLAGS', '') != '':
             extra_compile_args['nvcc'].extend(os.getenv('NVCC_FLAGS', '').split(' '))
   

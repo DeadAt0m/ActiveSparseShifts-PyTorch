@@ -3,6 +3,7 @@
 
 
 #include "shifts_cuda.h"
+#include <thrust/tuple.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <c10/cuda/CUDAException.h>
@@ -10,34 +11,15 @@
 #include <ATen/cuda/detail/TensorInfo.cuh>
 #include <ATen/cuda/detail/IndexUtils.cuh>
 #include <ATen/cuda/detail/KernelUtils.h>
+#include <ATen/native/cuda/Loops.cuh>
 #include <c10/macros/Macros.h>
-
-
 
 using namespace at::cuda::detail;
 
 
+
 namespace {
 #include "../kernels/shifts_kernels.h"
-
-    
-template <typename scalar_t, typename idx_t,
-          bool active = false>
-C10_LAUNCH_BOUNDS_1(CUDA_THREADS)
-__global__ void weight_init_cuda(const idx_t n_threads,
-                                 TensorInfo<scalar_t, idx_t> src,
-                                 TensorInfo<idx_t, idx_t> iw,
-                                 TensorInfo<scalar_t, idx_t> dw)
-{
-    scalar_t* src_ptr = src.data;
-    idx_t* iw_ptr = iw.data;
-    scalar_t* dw_ptr = dw.data;
-              
-    CUDA_KERNEL_LOOP_TYPE(i, n_threads, idx_t){         
-         weight_init_kernel<scalar_t, idx_t, active>(src_ptr, iw_ptr, dw_ptr, i);
-    }                
-}
-    
     
     
 template <typename scalar_t, int kSpatialDim = 1, typename idx_t,
@@ -183,6 +165,39 @@ __global__ void _shifts_backward_cuda(const idx_t sizeNC,
     }
 }
 
+template <typename scalar_t, bool active = false>
+inline void weights_init_forward(const torch::Tensor& weights,
+                                 torch::Tensor iweights,
+                                 torch::Tensor dweights){
+              
+    torch::TensorIterator iter = torch::TensorIteratorConfig().add_output(iweights)
+                                                              .add_output(dweights)
+                                                              .add_input(weights).build();          
+    
+    at::native::gpu_kernel_multiple_outputs(iter, [=] GPU_LAMBDA (scalar_t src) -> thrust::tuple<scalar_t, scalar_t> {
+                scalar_t iw = active?static_cast<scalar_t>(FLOOR(src)):
+                                     static_cast<scalar_t>(ROUND(src));
+                scalar_t dw = active?static_cast<scalar_t>((src - FLOOR(src))):static_cast<scalar_t>(0);
+                return {iw, dw};
+    });          
+} 
+    
+template <typename scalar_t, bool active = false>
+inline void weights_init_backward(const torch::Tensor& weights,
+                                  torch::Tensor iweights,
+                                  torch::Tensor dweights){
+    torch::TensorIterator iter = torch::TensorIteratorConfig().add_output(iweights)
+                                                              .add_output(dweights)
+                                                              .add_input(weights).build();          
+    
+    at::native::gpu_kernel_multiple_outputs(iter, [=] GPU_LAMBDA (scalar_t src) -> thrust::tuple<scalar_t, scalar_t> {
+                scalar_t iw = active?static_cast<scalar_t>(FLOOR(src)):
+                                     static_cast<scalar_t>(ROUND(src));
+                scalar_t dw = src - FLOOR(src);
+                return {iw, dw};
+    });          
+} 
+    
 //end of anonymous namespace        
 }
 
@@ -210,32 +225,14 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
     torch::Tensor _borders = int32bit_cond?borders.to(torch::kInt):borders.to(torch::kLong);
     
     torch::Tensor output = torch::empty(new_size, input.options(), LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    torch::Tensor iweights = torch::empty(_weights.sizes(), _weights.options().dtype(int32bit_cond?torch::kInt:torch::kLong),
-                                          LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    torch::Tensor _iweights = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor dweights = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    
-    int64_t count = _weights.numel();
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-    
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(_weights.scalar_type(), 'weights_init_cuda_f', [&] {
-        if (int32bit_cond){
-            weight_init_cuda<scalar_t,int,active>
-                <<<CUDA_BLOCKS(count,LOCAL_CUDA_NUM_THREADS), LOCAL_CUDA_NUM_THREADS, 0, stream>>>(
-                    static_cast<int>(count),
-                    getTensorInfo<scalar_t, int>(_weights),
-                    getTensorInfo<int, int>(iweights),
-                    getTensorInfo<scalar_t, int>(dweights));
-        }
-        else{
-             weight_init_cuda<scalar_t,int64_t,active>
-                <<<CUDA_BLOCKS(count,LOCAL_CUDA_NUM_THREADS), LOCAL_CUDA_NUM_THREADS, 0, stream>>>(
-                    count,
-                    getTensorInfo<scalar_t, int64_t>(_weights),
-                    getTensorInfo<int64_t, int64_t>(iweights),
-                    getTensorInfo<scalar_t, int64_t>(dweights));
-        }
+              
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(_weights.scalar_type(), 'weights_init_cuda_forward', [&] {
+        weights_init_forward<scalar_t, active>(_weights, _iweights, dweights);
     });
-    
+    torch::Tensor iweights = int32bit_cond?_iweights.to(torch::kInt):_iweights.to(torch::kLong);
+                  
     const int64_t N = input.size(0);
     const int64_t C = input.size(1);
     const int64_t H = input.size(2);
@@ -252,6 +249,7 @@ torch::Tensor shiftnd_forward_cuda(const torch::Tensor& input,
                       CUDA_BLOCKS(H, threads_y),
                       (nD>1)?CUDA_BLOCKS(W*D, threads_z):1);
     const dim3 threads(threads_x, threads_y, threads_z);
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
     
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(input.scalar_type(), name, [&] {
         if (int32bit_cond){
@@ -307,33 +305,15 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
     torch::Tensor _borders = int32bit_cond?borders.to(torch::kInt):borders.to(torch::kLong);
     
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    torch::Tensor weights_grad = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    torch::Tensor iweights = torch::empty(_weights.sizes(), _weights.options().dtype(int32bit_cond?torch::kInt:torch::kLong),
-                                          LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    torch::Tensor weights_grad = torch::zeros_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    torch::Tensor _iweights = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor dweights = torch::empty_like(_weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    
-    int64_t count = _weights.numel();
-    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-    
-    
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(_weights.scalar_type(), 'weights_init_cuda_b', [&] {
-        if (int32bit_cond){
-            weight_init_cuda<scalar_t,int,active>
-                <<<CUDA_BLOCKS(count,LOCAL_CUDA_NUM_THREADS), LOCAL_CUDA_NUM_THREADS, 0, stream>>>(
-                    static_cast<int>(count),
-                    getTensorInfo<scalar_t, int>(_weights),
-                    getTensorInfo<int, int>(iweights),
-                    getTensorInfo<scalar_t, int>(dweights));
-        }
-        else{
-             weight_init_cuda<scalar_t,int64_t,active>
-                <<<CUDA_BLOCKS(count,LOCAL_CUDA_NUM_THREADS), LOCAL_CUDA_NUM_THREADS, 0, stream>>>(
-                    count,
-                    getTensorInfo<scalar_t, int64_t>(_weights),
-                    getTensorInfo<int64_t, int64_t>(iweights),
-                    getTensorInfo<scalar_t, int64_t>(dweights));
-        }
+              
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(_weights.scalar_type(), 'weights_init_cuda_backward', [&] {
+        weights_init_backward<scalar_t, active>(_weights, _iweights, dweights);
     });
+    torch::Tensor iweights = int32bit_cond?_iweights.to(torch::kInt):_iweights.to(torch::kLong);
+              
         
     //Yes it's not a mistake, iteration happens under input size
     const int64_t N = input.size(0);
@@ -351,7 +331,8 @@ std::vector<torch::Tensor> shiftnd_backward_cuda(const torch::Tensor& grad,
                       CUDA_BLOCKS(H, threads_y),
                       (nD>1)?CUDA_BLOCKS(W*D, threads_z):1);
     const dim3 threads(threads_x, threads_y, threads_z);
-    
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+              
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(grad.scalar_type(), name, [&] {
         if (int32bit_cond){
             _shifts_backward_cuda<scalar_t, nD, int, padding_mode, active>

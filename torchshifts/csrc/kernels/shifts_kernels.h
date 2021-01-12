@@ -131,24 +131,24 @@ API_INLINE scalar_t compute_interpolated(const scalar_t* const v, const scalar_t
 
 template <typename scalar_t, typename idx_t, int kSpatialDim = 1>
 API_INLINE void compute_weight_gradients(const scalar_t* const v, const scalar_t diff_shiftH, const scalar_t diff_shiftW, const scalar_t diff_shiftD,
-                                         scalar_t* const output_grad){
+                                         scalar_t* const output_grad, const bool pass_cond, const scalar_t zp){
     switch (kSpatialDim){        
         case 3:
-            output_grad[0]=interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                    diff_shiftW, diff_shiftD);
-            output_grad[1]=interp3D_dy(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                    diff_shiftH, diff_shiftD);
-            output_grad[2]=interp3D_dz(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-                                    diff_shiftH, diff_shiftW);
+            output_grad[0]=pass_cond?interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                                diff_shiftW, diff_shiftD):zp;
+            output_grad[1]=pass_cond?interp3D_dy(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                                diff_shiftH, diff_shiftD):zp;
+            output_grad[2]=pass_cond?interp3D_dz(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                                                diff_shiftH, diff_shiftW):zp;
             break;
         case 2:
-            output_grad[0]=interp2D_dx(v[0], v[1], v[2], v[3], 
-                                    diff_shiftW);
-            output_grad[1]=interp2D_dy(v[0], v[1], v[2], v[3], 
-                                    diff_shiftH);
+            output_grad[0]=pass_cond?interp2D_dx(v[0], v[1], v[2], v[3], 
+                                                 diff_shiftW):zp;
+            output_grad[1]=pass_cond?interp2D_dy(v[0], v[1], v[2], v[3], 
+                                                 diff_shiftH):zp;
             break;
         case 1:
-            output_grad[0]=interp1D_dx(v[0], v[1]);
+            output_grad[0]=pass_cond?interp1D_dx(v[0], v[1]):zp;
             break;
     }
 }
@@ -271,7 +271,7 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
                                         sk, sizeD, input_sD,
                                         0, 0, pass_cond,                                       
                                         input_NC, zp, vals_array);                         
-    compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad);    
+    compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad, pass_cond, zp);    
     ADD((weights_grad + c*weights_grad_sC),(input_grad_NCHWD_val * new_weights_grad[0]));
     if (kSpatialDim > 1){ADD((weights_grad + c*weights_grad_sC + weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[1]));}
     if (kSpatialDim > 2){ADD((weights_grad + c*weights_grad_sC + 2*weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[2]));}
@@ -478,7 +478,7 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
                                             sk, sizeD, input_sD,
                                             c, input_sC, pass_cond,                                       
                                             input_N, zp, vals_array);                         
-        compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad);  
+        compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad, pass_cond, zp);  
         input_grad_NHWDC_val = input_grad_NHWD[c*input_grad_sC];
         ADD((weights_grad + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[0]));
         if (kSpatialDim > 1){ADD((weights_grad + weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[1]));}
@@ -601,19 +601,5 @@ API_INLINE void shift_forward_kernel_nhwdc_q(const scalar_t* const input, scalar
                                                input_N, zero_point);
             output_NHWD[c*output_sC] = val;
         }
-    }
-}
-
-
-// Weights Init
-
-template <typename scalar_t, typename idx_t,
-          bool active = false>
-API_INLINE void weight_init_kernel(const scalar_t* const src, idx_t* const iw, scalar_t* const dw,
-                                   const idx_t i)
-{
-    iw[i] = static_cast<idx_t>(active?FLOOR(*(src+i)):ROUND(*(src+i)));
-    if (active){
-        dw[i] = *(src+i) - static_cast<scalar_t>(iw[i]);
     }
 }

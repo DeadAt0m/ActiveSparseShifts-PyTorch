@@ -235,11 +235,10 @@ std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
     
     torch::Tensor iweights = (active?torch::floor(weights):torch::round(weights)).to(torch::kLong);
-    torch::Tensor dweights = torch::empty_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    if (active){ dweights = weights - iweights; }
+    torch::Tensor dweights = weights - torch::floor(weights);
     
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    torch::Tensor weights_grad = torch::empty_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    torch::Tensor weights_grad = torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
 
     AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), name, [&] {
         _shifts_backward_cpu<scalar_t, nD, padding_mode, active>(grad, iweights, dweights, input, borders, out_grad, weights_grad);
