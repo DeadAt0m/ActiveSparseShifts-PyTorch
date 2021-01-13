@@ -21,6 +21,7 @@
 #if defined(_SHIFTS_CPU) || defined(_SHIFTS_QCPU)
     #define ROUND(a) (std::round(a))
     #define FLOOR(a) (std::floor(a))
+    #define CEIL(a) (std::ceil(a))
     #define MIN(a,b) (std::min(a,b))
     #define MAX(a,b) (std::max(a,b))
     #define ABS(a) (std::abs(a))
@@ -31,6 +32,7 @@
     #include <THC/THCAtomics.cuh>
     #define ROUND(a) (::round(a))
     #define FLOOR(a) (::floor(a))
+    #define CEIL(a) (::ceil(a))
     #define MIN(a,b) (::min(a,b))
     #define MAX(a,b) (::max(a,b))
     #define ABS(a) (::abs(a))

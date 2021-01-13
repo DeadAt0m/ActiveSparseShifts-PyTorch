@@ -214,10 +214,10 @@ torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
     std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
     
     torch::Tensor output =  torch::empty(new_size, input.options(), LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    
-    torch::Tensor iweights = (active?torch::floor(weights):torch::round(weights)).to(torch::kLong);
-    torch::Tensor dweights = torch::empty_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    if (active){ dweights = weights - iweights; }
+
+    torch::Tensor iweights = (active?torch::where(weights>0, torch::floor(weights), torch::ceil(weights)):
+                                     torch::round(weights)).to(torch::kLong);
+    torch::Tensor dweights = active?(weights - iweights):torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     
     AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
         _shifts_forward_cpu<scalar_t, nD, padding_mode, active>(input, iweights, dweights, borders, output);
@@ -234,8 +234,11 @@ std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
                                                 const torch::Tensor& borders) {
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
     
-    torch::Tensor iweights = (active?torch::floor(weights):torch::round(weights)).to(torch::kLong);
-    torch::Tensor dweights = weights - torch::floor(weights);
+    torch::Tensor iweights = (active?torch::where(weights>0, torch::floor(weights), torch::ceil(weights)):
+                                     torch::round(weights)).to(torch::kLong);
+           
+    torch::Tensor dweights = torch::where(weights>0,weights - torch::floor(weights), 
+                                                    weights - torch::ceil(weights));
     
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor weights_grad = torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
@@ -251,11 +254,11 @@ std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
 
 
 torch::Tensor shift1d_forward_cpu(const torch::Tensor& input,
-                                   const torch::Tensor& weights,
-                                   const torch::Tensor& borders,
-                                   const std::vector<int64_t>& new_size,
-                                   int64_t padding_mode,
-                                   bool active_flag){
+                                  const torch::Tensor& weights,
+                                  const torch::Tensor& borders,
+                                  const std::vector<int64_t>& new_size,
+                                  int64_t padding_mode,
+                                  bool active_flag){
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
