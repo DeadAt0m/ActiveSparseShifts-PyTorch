@@ -3,22 +3,8 @@
 
 #define CUDA_THREADS 1024
 
-
-
-
-#ifdef _WIN32
-#if defined(TORCHSHIFTS_EXPORTS)
-#define API_EXPORT __declspec(dllexport)
-#else
-#define API_EXPORT __declspec(dllimport)
-#endif
-#else
-#define API_EXPORT
-#endif
-
-
 #include <cmath>
-#if defined(_SHIFTS_CPU) || defined(_SHIFTS_QCPU)
+#ifdef _SHIFTS_CPU
     #define ROUND(a) (std::round(a))
     #define FLOOR(a) (std::floor(a))
     #define CEIL(a) (std::ceil(a))
@@ -26,7 +12,15 @@
     #define MAX(a,b) (std::max(a,b))
     #define ABS(a) (std::abs(a))
     #define ADD(a,b) (*a += b)
-    #define API_INLINE inline
+    #if (defined __cpp_inline_variables) || __cplusplus >= 201703L
+        #define API_INLINE inline
+    #else 
+    #ifdef _MSC_VER
+        #define API_INLINE __declspec(selectany)
+    #else
+        #define API_INLINE __attribute__((weak))
+    #endif
+    #endif
 #endif
 #ifdef _SHIFTS_CUDA
     #include <THC/THCAtomics.cuh>

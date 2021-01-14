@@ -1,18 +1,25 @@
-#ifndef _SHIFTS_QCPU
-#define _SHIFTS_QCPU
+#ifndef _SHIFTS_CPU
+#define _SHIFTS_CPU
 
-#include "shifts_quantized.h"
+
+#include <torch/extension.h>
+#include "../global_scope.h"
 #include "../kernels/shifts_kernels.h"
 
 
+namespace shifts {
+namespace ops {
+
+namespace {
 
 
 template <typename scalar_t, int kSpatialDim=1,
           BIPadding padding_mode = BIPadding::Zeros>
-API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& weights,
-                              const torch::Tensor& borders,
-                              torch::Tensor& output,
-                              int64_t weights_zero_point){
+API_INLINE void qshiftnd_kernel(const torch::Tensor& input,
+                                const torch::Tensor& weights,
+                                const torch::Tensor& borders,
+                                torch::Tensor& output,
+                                int64_t weights_zero_point){
     const int64_t sizeN = input.size(0);
     const int64_t sizeC = input.size(1);
     const int64_t sizeH = input.size(2);
@@ -98,16 +105,17 @@ API_INLINE void _q_shifts_cpu(const torch::Tensor& input, const torch::Tensor& w
 
 
 template <int nD, BIPadding padding_mode = BIPadding::Zeros>
-torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            const torch::Tensor& borders,
-                            const std::vector<int64_t>& new_size){
+torch::Tensor qshiftnd(const torch::Tensor& input,
+                       const torch::Tensor& weights,
+                       const torch::Tensor& borders,
+                       const std::vector<int64_t>& new_size){
     std::string name = "q_shift"+std::to_string(nD)+"d_cpu";
     torch::Tensor output;
     int64_t weights_zero_point = static_cast<int64_t>(weights.q_zero_point());
     torch::Tensor iweights = weights.int_repr().to(torch::kLong);
     
-
+    torch::Tensor _borders = borders.to(torch::kLong);
+    
     if (input.is_contiguous(c10::MemoryFormat::ChannelsLast) || input.is_contiguous(c10::MemoryFormat::ChannelsLast3d)) {
         output = at::_empty_affine_quantized(new_size, input.options().memory_format(input.suggest_memory_format()),
                                              input.q_scale(), input.q_zero_point(), c10::nullopt);
@@ -116,92 +124,132 @@ torch::Tensor q_shiftnd_cpu(const torch::Tensor& input,
         output = at::_empty_affine_quantized(new_size, input.options(), input.q_scale(), input.q_zero_point());
     }
     AT_DISPATCH_QINT_TYPES(input.scalar_type(), name, [&] {
-                _q_shifts_cpu<scalar_t, nD, padding_mode>(input, iweights, borders, output, weights_zero_point);
+                qshiftnd_kernel<scalar_t, nD, padding_mode>(input, iweights, _borders, output, weights_zero_point);
     }); 
     return output;
 }
 
-// DISPATCHES!
+ 
+// TEMPLATE DISPATCHERS   
 
 
-torch::Tensor q_shift1d_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            const torch::Tensor& borders,
-                            const std::vector<int64_t>& new_size,
-                            int64_t padding_mode){
+torch::Tensor qshift1d(const torch::Tensor& input,
+                       const torch::Tensor& weights,
+                       const torch::Tensor& borders,
+                       const std::vector<int64_t>& new_size,
+                       int64_t padding_mode,
+                       bool active_flag){ //active_flag not used here, but needs for API compatibility
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
-            ret = q_shiftnd_cpu<1, BIPadding::Zeros>(input, weights, borders, new_size);
+            ret = qshiftnd<1, BIPadding::Zeros>(input, weights, borders, new_size);
             break;
         case 1:
-            ret = q_shiftnd_cpu<1, BIPadding::Border>(input, weights, borders, new_size);
+            ret = qshiftnd<1, BIPadding::Border>(input, weights, borders, new_size);
             break;
         case 2:
-            ret = q_shiftnd_cpu<1, BIPadding::Periodic>(input, weights, borders, new_size);
+            ret = qshiftnd<1, BIPadding::Periodic>(input, weights, borders, new_size);
             break;
         case 3:
-            ret = q_shiftnd_cpu<1, BIPadding::Reflect>(input, weights, borders, new_size);
+            ret = qshiftnd<1, BIPadding::Reflect>(input, weights, borders, new_size);
             break;
         case 4:
-            ret = q_shiftnd_cpu<1, BIPadding::Symmetric>(input, weights, borders, new_size);
+            ret = qshiftnd<1, BIPadding::Symmetric>(input, weights, borders, new_size);
             break;
     }
     return ret;                  
 }
 
 
-
-torch::Tensor q_shift2d_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            const torch::Tensor& borders,
-                            const std::vector<int64_t>& new_size,
-                            int64_t padding_mode){
+torch::Tensor qshift2d(const torch::Tensor& input,
+                       const torch::Tensor& weights,
+                       const torch::Tensor& borders,
+                       const std::vector<int64_t>& new_size,
+                       int64_t padding_mode,
+                       bool active_flag){ //active_flag not used here, but needs for API compatibility
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
-            ret = q_shiftnd_cpu<2, BIPadding::Zeros>(input, weights, borders, new_size);
+            ret = qshiftnd<2, BIPadding::Zeros>(input, weights, borders, new_size);
             break;
         case 1:
-            ret = q_shiftnd_cpu<2, BIPadding::Border>(input, weights, borders, new_size);
+            ret = qshiftnd<2, BIPadding::Border>(input, weights, borders, new_size);
             break;
         case 2:
-            ret = q_shiftnd_cpu<2, BIPadding::Periodic>(input, weights, borders, new_size);
+            ret = qshiftnd<2, BIPadding::Periodic>(input, weights, borders, new_size);
             break;
         case 3:
-            ret = q_shiftnd_cpu<2, BIPadding::Reflect>(input, weights, borders, new_size);
+            ret = qshiftnd<2, BIPadding::Reflect>(input, weights, borders, new_size);
             break;
         case 4:
-            ret = q_shiftnd_cpu<2, BIPadding::Symmetric>(input, weights, borders, new_size);
+            ret = qshiftnd<2, BIPadding::Symmetric>(input, weights, borders, new_size);
             break;
     }
     return ret;                  
 }
 
-torch::Tensor q_shift3d_cpu(const torch::Tensor& input,
-                            const torch::Tensor& weights,
-                            const torch::Tensor& borders,
-                            const std::vector<int64_t>& new_size,
-                            int64_t padding_mode){
+torch::Tensor qshift3d(const torch::Tensor& input,
+                       const torch::Tensor& weights,
+                       const torch::Tensor& borders,
+                       const std::vector<int64_t>& new_size,
+                       int64_t padding_mode,
+                       bool active_flag){ //active_flag not used here, but needs for API compatibility
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
-            ret = q_shiftnd_cpu<3, BIPadding::Zeros>(input, weights, borders, new_size);
+            ret = qshiftnd<3, BIPadding::Zeros>(input, weights, borders, new_size);
             break;
         case 1:
-            ret = q_shiftnd_cpu<3, BIPadding::Border>(input, weights, borders, new_size);
+            ret = qshiftnd<3, BIPadding::Border>(input, weights, borders, new_size);
             break;
         case 2:
-            ret = q_shiftnd_cpu<3, BIPadding::Periodic>(input, weights, borders, new_size);
+            ret = qshiftnd<3, BIPadding::Periodic>(input, weights, borders, new_size);
             break;
         case 3:
-            ret = q_shiftnd_cpu<3, BIPadding::Reflect>(input, weights, borders, new_size);
+            ret = qshiftnd<3, BIPadding::Reflect>(input, weights, borders, new_size);
             break;
         case 4:
-            ret = q_shiftnd_cpu<3, BIPadding::Symmetric>(input, weights, borders, new_size);
+            ret = qshiftnd<3, BIPadding::Symmetric>(input, weights, borders, new_size);
             break;
     }
     return ret;                  
 }
+    
+std::tuple<torch::Tensor, torch::Tensor> qshiftnd_backward(const torch::Tensor& grad,
+                                                           const torch::Tensor& weights,
+                                                           const torch::Tensor& input,
+                                                           const torch::Tensor& borders,
+                                                           int64_t padding_mode,
+                                                           bool active_flag){
+    TORCH_CHECK(0, "backwards on quantized tensor are not supported");
+}
 
+} // end of anonymous namespace
+
+
+TORCH_LIBRARY_IMPL(torchshifts, QuantizedCPU, m) {
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift1d_forward"),
+        TORCH_FN(qshift1d));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift1d_backward"),
+        TORCH_FN(qshiftnd_backward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift2d_forward"),
+        TORCH_FN(qshift2d));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift2d_backward"),
+        TORCH_FN(qshiftnd_backward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift3d_forward"),
+        TORCH_FN(qshift3d));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift3d_backward"),
+        TORCH_FN(qshiftnd_backward));
+}
+
+} // namespace ops
+} // namespace shifts
+
+    
 #endif

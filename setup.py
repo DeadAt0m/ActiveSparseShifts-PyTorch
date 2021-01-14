@@ -1,5 +1,5 @@
 MODULE_NAME = 'torchshifts' 
-MODULE_VERSION = '2.6'
+MODULE_VERSION = '3.0'
 #DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STD_VERSION = "c++17"
@@ -13,13 +13,22 @@ from torch.utils.cpp_extension import CppExtension, CUDAExtension
 from torch.cuda import is_available as cuda_available
 from torch import version as torch_version
 from pathlib import Path
+import torch
 from setup_utils import check_for_openmp, clean
 import subprocess
 cwd = Path.cwd()
-
+torch_ver = torch.__version__
+torch_ver = torch_ver.split('+')[0] if '+' in torch_ver else torch_ver
 
 
 requirements = [f'torch >= {PYTORCH_VERSION}']
+
+if torch_ver < '1.8':
+    from torch_patch import  patch_torch_infer_schema_h
+    __SUCC =  patch_torch_infer_schema_h()
+    if not __SUCC:
+        print('Something went wrong during patching! The CUDA build have chance to fail!')
+
 
 #cuda
 cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
@@ -61,12 +70,15 @@ def get_extensions():
     extensions_dir = cwd / MODULE_NAME / 'csrc'
 
     sources = list(extensions_dir.glob('*.cpp'))
-    sources += list((extensions_dir / 'cpu').glob('*.cpp')) + list((extensions_dir / 'quantized').glob('*.cpp'))
-
+    sources += list((extensions_dir / 'ops').glob('*.cpp'))
+    sources += list((extensions_dir / 'ops' / 'autograd').glob('*.cpp'))
+    sources += list((extensions_dir / 'ops' / 'cpu').glob('*.cpp'))
+    sources += list((extensions_dir / 'ops' / 'quantized').glob('*.cpp'))
+    
     extension = CppExtension
 
     define_macros = []
-    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-O3']}
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-O3',]}
 
     parallel_method = ['-DAT_PARALLEL_NATIVE=1']
     if sys.platform == 'win32':
@@ -82,14 +94,16 @@ def get_extensions():
     if cuda_avail:
         print('Building with CUDA')
         extension = CUDAExtension
-        sources += list((extensions_dir / 'cuda').glob('*.cu'))
+        sources += list((extensions_dir / 'ops' / 'cuda').glob('*.cu'))
         define_macros += [('WITH_CUDA', None)]
         extra_compile_args['nvcc'] = ['-O3', '-DNDEBUG', '--expt-extended-lambda']
         if os.getenv('NVCC_FLAGS', '') != '':
             extra_compile_args['nvcc'].extend(os.getenv('NVCC_FLAGS', '').split(' '))
   
+    if torch_ver >= '1.8':
+        define_macros += [('TORCH1.8', None)]
 
-    sources = list(map(lambda x: str(x.resolve()), sources))
+    sources = list(set(map(lambda x: str(x.resolve()), sources)))
     include_dirs = [str(extensions_dir)]
     ext_modules = [
         extension(

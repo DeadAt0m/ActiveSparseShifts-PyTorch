@@ -3,15 +3,16 @@
 
 
 #include <cstdint>
-
+#include "macros.h"
 
 namespace shifts {
-    int64_t cuda_version();
+    API_EXPORT int64_t cuda_version();
 
-    namespace detail {
+namespace detail {
         //(Taken from torchvision)
         int64_t _cuda_version = cuda_version();
-    } 
+
+} 
 } 
 
 #endif 

@@ -44,7 +44,14 @@ It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4
 ## Instalation:
 1. Clone this repo and ```cd ActiveSparseShifts-PyTorch```
 (1b). If you compile with CUDA, please pass path to nvcc to CUDA_HOME env variable!
-2. Run ```python setup.py install``` 
+2. **Important!** There is bug in PyTorch which can lead to crash during build under CUDA.
+   This bug was fixed in PyTorch 1.8. However it easy to fix it in previous versions.
+   Run ```python torch_patch.py```(anyway it will automatically run during step 3) to fix it.
+   This script change a few lines of code in single C++ header file, however doing this directly in python dist-package folder.
+   Please, be sure that you have rights for changing files inside this folder!
+   Anyway, you should do it only once for each python enviroment(PyTorch package).
+   (If something will going wrong, please inspect ```torch_patch.py``` first (it very simple) and try to reproduce patch manually.)
+3. Run ```python setup.py install``` or ```python setup.py bdist_wheel``` - to instal/build package
 
     
 ## Using:
