@@ -43,7 +43,7 @@ torch::Tensor _shift2d_forward(const torch::Tensor& input,
     static auto op =
       c10::Dispatcher::singleton()
           .findSchemaOrThrow("torchshifts::_shift2d_forward", "")
-          .typed<decltype(_shift1d_forward)>();
+          .typed<decltype(_shift2d_forward)>();
     return op.call(input, weights,  borders, new_size, padding_mode, active_flag);
 }   
     
@@ -56,7 +56,7 @@ std::tuple<torch::Tensor, torch::Tensor> _shift2d_backward(const torch::Tensor& 
     static auto op =
       c10::Dispatcher::singleton()
           .findSchemaOrThrow("torchshifts::_shift2d_backward", "")
-          .typed<decltype(_shift1d_backward)>();
+          .typed<decltype(_shift2d_backward)>();
     return op.call(grad, weights, input, borders, padding_mode, active_flag);
 }        
     
@@ -70,7 +70,7 @@ torch::Tensor _shift3d_forward(const torch::Tensor& input,
     static auto op =
       c10::Dispatcher::singleton()
           .findSchemaOrThrow("torchshifts::_shift3d_forward", "")
-          .typed<decltype(_shift1d_forward)>();
+          .typed<decltype(_shift3d_forward)>();
     return op.call(input, weights,  borders, new_size, padding_mode, active_flag);
 }   
     
@@ -83,7 +83,7 @@ std::tuple<torch::Tensor, torch::Tensor> _shift3d_backward(const torch::Tensor& 
     static auto op =
       c10::Dispatcher::singleton()
           .findSchemaOrThrow("torchshifts::_shift3d_backward", "")
-          .typed<decltype(_shift1d_backward)>();
+          .typed<decltype(_shift3d_backward)>();
     return op.call(grad, weights, input, borders, padding_mode, active_flag);
 }            
 
