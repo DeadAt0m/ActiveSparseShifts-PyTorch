@@ -1,18 +1,24 @@
 #ifndef _SHIFTS_CPU
 #define _SHIFTS_CPU
 
-#include "shifts_cpu.h"
+#include <torch/extension.h>
+#include "../global_scope.h"
 #include "../kernels/shifts_kernels.h"
+#include <torch/library.h>
 
+namespace torchshifts {
+namespace ops {
+
+namespace {
 
 
 template <typename scalar_t, int kSpatialDim = 1, 
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Tensor& iweights,
-                                    const torch::Tensor& dweights,
-                                    const torch::Tensor& borders,
-                                    torch::Tensor& output){
+API_INLINE void shiftnd_forward_kernel(const torch::Tensor& input, const torch::Tensor& iweights,
+                                       const torch::Tensor& dweights,
+                                       const torch::Tensor& borders,
+                                       torch::Tensor& output){
     const int64_t sizeN = input.size(0);
     const int64_t sizeC = input.size(1);
     const int64_t sizeH = input.size(2);
@@ -97,13 +103,13 @@ API_INLINE void _shifts_forward_cpu(const torch::Tensor& input, const torch::Ten
 template <typename scalar_t, int kSpatialDim = 1, 
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void _shifts_backward_cpu(const torch::Tensor& grad_input, 
-                                     const torch::Tensor& iweights,
-                                     const torch::Tensor& dweights,
-                                     const torch::Tensor& input, 
-                                     const torch::Tensor& borders,
-                                     torch::Tensor& grad_output,
-                                     torch::Tensor& grad_weights)
+API_INLINE void shiftnd_backward_kernel(const torch::Tensor& grad_input, 
+                                        const torch::Tensor& iweights,
+                                        const torch::Tensor& dweights,
+                                        const torch::Tensor& input, 
+                                        const torch::Tensor& borders,
+                                        torch::Tensor& grad_output,
+                                        torch::Tensor& grad_weights)
 {
     const int64_t sizeN = input.size(0);
     const int64_t sizeC = input.size(1);
@@ -207,20 +213,22 @@ API_INLINE void _shifts_backward_cpu(const torch::Tensor& grad_input,
 
 template <int nD, BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
-                                  const torch::Tensor& weights,
-                                  const torch::Tensor& borders,
-                                  const std::vector<int64_t>& new_size){
+torch::Tensor shiftnd_forward(const torch::Tensor& input,
+                              const torch::Tensor& weights,
+                              const torch::Tensor& borders,
+                              const std::vector<int64_t>& new_size){
     std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
     
     torch::Tensor output =  torch::empty(new_size, input.options(), LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    
-    torch::Tensor iweights = (active?torch::floor(weights):torch::round(weights)).to(torch::kLong);
-    torch::Tensor dweights = torch::empty_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
-    if (active){ dweights = weights - iweights; }
+
+    torch::Tensor iweights = (active?torch::where(weights>0, torch::floor(weights), torch::ceil(weights)):
+                                     torch::round(weights)).to(torch::kLong);
+    torch::Tensor dweights = active?(weights - iweights):torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+              
+    torch::Tensor _borders = borders.to(torch::kLong);
     
     AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
-        _shifts_forward_cpu<scalar_t, nD, padding_mode, active>(input, iweights, dweights, borders, output);
+        shiftnd_forward_kernel<scalar_t, nD, padding_mode, active>(input, iweights, dweights, _borders, output);
     });
     return output;
 }
@@ -228,221 +236,251 @@ torch::Tensor shiftnd_forward_cpu(const torch::Tensor& input,
 
 template <int nD, BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-std::vector<torch::Tensor> shiftnd_backward_cpu(const torch::Tensor& grad,
-                                                const torch::Tensor& weights,
-                                                const torch::Tensor& input,
-                                                const torch::Tensor& borders) {
+std::tuple<torch::Tensor, torch::Tensor> shiftnd_backward(const torch::Tensor& grad,
+                                                          const torch::Tensor& weights,
+                                                          const torch::Tensor& input,
+                                                          const torch::Tensor& borders) {
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
     
-    torch::Tensor iweights = (active?torch::floor(weights):torch::round(weights)).to(torch::kLong);
-    torch::Tensor dweights = weights - torch::floor(weights);
-    
+    torch::Tensor dweights = torch::where(weights>0,weights - torch::floor(weights), 
+                                                    weights - torch::ceil(weights));          
+    torch::Tensor iweights = (active?(weights - dweights):torch::round(weights)).to(torch::kLong);
+
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
     torch::Tensor weights_grad = torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
+    
+    torch::Tensor _borders = borders.to(torch::kLong);
 
     AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), name, [&] {
-        _shifts_backward_cpu<scalar_t, nD, padding_mode, active>(grad, iweights, dweights, input, borders, out_grad, weights_grad);
+        shiftnd_backward_kernel<scalar_t, nD, padding_mode, active>(grad, iweights, dweights, input, _borders, out_grad, weights_grad);
     });
-    return {out_grad, weights_grad};
+    return std::make_tuple(out_grad, weights_grad);
 }
 
 
-// DISPATCHES!
-
-
-torch::Tensor shift1d_forward_cpu(const torch::Tensor& input,
-                                   const torch::Tensor& weights,
-                                   const torch::Tensor& borders,
-                                   const std::vector<int64_t>& new_size,
-                                   int64_t padding_mode,
-                                   bool active_flag){
+// TEMPLATE DISPATCHERS
+              
+torch::Tensor shift1d_forward(const torch::Tensor& input,
+                              const torch::Tensor& weights,
+                              const torch::Tensor& borders,
+                              const std::vector<int64_t>& new_size,
+                              int64_t padding_mode,
+                              bool active_flag){
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
-            ret = active_flag?shiftnd_forward_cpu<1,BIPadding::Zeros,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<1,BIPadding::Zeros,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<1,BIPadding::Zeros,true>(input, weights, borders, new_size):
+                              shiftnd_forward<1,BIPadding::Zeros,false>(input, weights, borders, new_size);
             break;
         case 1:
-            ret = active_flag?shiftnd_forward_cpu<1,BIPadding::Border,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<1,BIPadding::Border,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<1,BIPadding::Border,true>(input, weights, borders, new_size):
+                              shiftnd_forward<1,BIPadding::Border,false>(input, weights, borders, new_size);
             break;
         case 2:
-            ret = active_flag?shiftnd_forward_cpu<1,BIPadding::Periodic,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<1,BIPadding::Periodic,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<1,BIPadding::Periodic,true>(input, weights, borders, new_size):
+                              shiftnd_forward<1,BIPadding::Periodic,false>(input, weights, borders, new_size);
             break;
         case 3:
-            ret = active_flag?shiftnd_forward_cpu<1,BIPadding::Reflect,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<1,BIPadding::Reflect,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<1,BIPadding::Reflect,true>(input, weights, borders, new_size):
+                              shiftnd_forward<1,BIPadding::Reflect,false>(input, weights, borders, new_size);
             break;
         case 4:
-            ret = active_flag?shiftnd_forward_cpu<1,BIPadding::Symmetric,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<1,BIPadding::Symmetric,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<1,BIPadding::Symmetric,true>(input, weights, borders, new_size):
+                              shiftnd_forward<1,BIPadding::Symmetric,false>(input, weights, borders, new_size);
             break;
     }
     return ret;                  
 }
 
-torch::Tensor shift2d_forward_cpu(const torch::Tensor& input,
-                                   const torch::Tensor& weights,
-                                   const torch::Tensor& borders,
-                                   const std::vector<int64_t>& new_size,
-                                   int64_t padding_mode,
-                                   bool active_flag){
+torch::Tensor shift2d_forward(const torch::Tensor& input,
+                              const torch::Tensor& weights,
+                              const torch::Tensor& borders,
+                              const std::vector<int64_t>& new_size,
+                              int64_t padding_mode,
+                              bool active_flag){
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
-            ret = active_flag?shiftnd_forward_cpu<2,BIPadding::Zeros,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<2,BIPadding::Zeros,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<2,BIPadding::Zeros,true>(input, weights, borders, new_size):
+                              shiftnd_forward<2,BIPadding::Zeros,false>(input, weights, borders, new_size);
             break;
         case 1:
-            ret = active_flag?shiftnd_forward_cpu<2,BIPadding::Border,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<2,BIPadding::Border,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<2,BIPadding::Border,true>(input, weights, borders, new_size):
+                              shiftnd_forward<2,BIPadding::Border,false>(input, weights, borders, new_size);
             break;
         case 2:
-            ret = active_flag?shiftnd_forward_cpu<2,BIPadding::Periodic,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<2,BIPadding::Periodic,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<2,BIPadding::Periodic,true>(input, weights, borders, new_size):
+                              shiftnd_forward<2,BIPadding::Periodic,false>(input, weights, borders, new_size);
             break;
         case 3:
-            ret = active_flag?shiftnd_forward_cpu<2,BIPadding::Reflect,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<2,BIPadding::Reflect,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<2,BIPadding::Reflect,true>(input, weights, borders, new_size):
+                              shiftnd_forward<2,BIPadding::Reflect,false>(input, weights, borders, new_size);
             break;
         case 4:
-            ret = active_flag?shiftnd_forward_cpu<2,BIPadding::Symmetric,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<2,BIPadding::Symmetric,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<2,BIPadding::Symmetric,true>(input, weights, borders, new_size):
+                              shiftnd_forward<2,BIPadding::Symmetric,false>(input, weights, borders, new_size);
             break;
     }
     return ret;                         
 }
 
-torch::Tensor shift3d_forward_cpu(const torch::Tensor& input,
-                                   const torch::Tensor& weights,
-                                   const torch::Tensor& borders,
-                                   const std::vector<int64_t>& new_size,
-                                   int64_t padding_mode,
-                                   bool active_flag){
+torch::Tensor shift3d_forward(const torch::Tensor& input,
+                              const torch::Tensor& weights,
+                              const torch::Tensor& borders,
+                              const std::vector<int64_t>& new_size,
+                              int64_t padding_mode,
+                              bool active_flag){
     torch::Tensor ret;
     switch (padding_mode){        
         case 0:
-            ret = active_flag?shiftnd_forward_cpu<3,BIPadding::Zeros,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<3,BIPadding::Zeros,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<3,BIPadding::Zeros,true>(input, weights, borders, new_size):
+                              shiftnd_forward<3,BIPadding::Zeros,false>(input, weights, borders, new_size);
             break;
         case 1:
-            ret = active_flag?shiftnd_forward_cpu<3,BIPadding::Border,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<3,BIPadding::Border,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<3,BIPadding::Border,true>(input, weights, borders, new_size):
+                              shiftnd_forward<3,BIPadding::Border,false>(input, weights, borders, new_size);
             break;
         case 2:
-            ret = active_flag?shiftnd_forward_cpu<3,BIPadding::Periodic,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<3,BIPadding::Periodic,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<3,BIPadding::Periodic,true>(input, weights, borders, new_size):
+                              shiftnd_forward<3,BIPadding::Periodic,false>(input, weights, borders, new_size);
             break;
         case 3:
-            ret = active_flag?shiftnd_forward_cpu<3,BIPadding::Reflect,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<3,BIPadding::Reflect,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<3,BIPadding::Reflect,true>(input, weights, borders, new_size):
+                              shiftnd_forward<3,BIPadding::Reflect,false>(input, weights, borders, new_size);
             break;
         case 4:
-            ret = active_flag?shiftnd_forward_cpu<3,BIPadding::Symmetric,true>(input, weights, borders, new_size):
-                              shiftnd_forward_cpu<3,BIPadding::Symmetric,false>(input, weights, borders, new_size);
+            ret = active_flag?shiftnd_forward<3,BIPadding::Symmetric,true>(input, weights, borders, new_size):
+                              shiftnd_forward<3,BIPadding::Symmetric,false>(input, weights, borders, new_size);
             break;
     }
     return ret;                        
 }
 
 
-std::vector<torch::Tensor> shift1d_backward_cpu(const torch::Tensor& grad,
-                                                 const torch::Tensor& weights,
-                                                 const torch::Tensor& input,
-                                                 const torch::Tensor& borders,
-                                                 int64_t padding_mode,
-                                                 bool active_flag){
-    std::vector<torch::Tensor> ret;
+std::tuple<torch::Tensor, torch::Tensor> shift1d_backward(const torch::Tensor& grad,
+                                                          const torch::Tensor& weights,
+                                                          const torch::Tensor& input,
+                                                          const torch::Tensor& borders,
+                                                          int64_t padding_mode,
+                                                          bool active_flag){
+    std::tuple<torch::Tensor, torch::Tensor> ret;
     switch (padding_mode){        
         case 0:
-            ret = active_flag?shiftnd_backward_cpu<1,BIPadding::Zeros,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<1,BIPadding::Zeros,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<1,BIPadding::Zeros,true>(grad, weights, input, borders):
+                              shiftnd_backward<1,BIPadding::Zeros,false>(grad, weights, input, borders);
             break;
         case 1:
-            ret = active_flag?shiftnd_backward_cpu<1,BIPadding::Border,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<1,BIPadding::Border,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<1,BIPadding::Border,true>(grad, weights, input, borders):
+                              shiftnd_backward<1,BIPadding::Border,false>(grad, weights, input, borders);
             break;
         case 2:
-            ret = active_flag?shiftnd_backward_cpu<1,BIPadding::Periodic,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<1,BIPadding::Periodic,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<1,BIPadding::Periodic,true>(grad, weights, input, borders):
+                              shiftnd_backward<1,BIPadding::Periodic,false>(grad, weights, input, borders);
             break;
         case 3:
-            ret = active_flag?shiftnd_backward_cpu<1,BIPadding::Reflect,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<1,BIPadding::Reflect,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<1,BIPadding::Reflect,true>(grad, weights, input, borders):
+                              shiftnd_backward<1,BIPadding::Reflect,false>(grad, weights, input, borders);
             break;
         case 4:
-            ret = active_flag?shiftnd_backward_cpu<1,BIPadding::Symmetric,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<1,BIPadding::Symmetric,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<1,BIPadding::Symmetric,true>(grad, weights, input, borders):
+                              shiftnd_backward<1,BIPadding::Symmetric,false>(grad, weights, input, borders);
             break;
     }
     return ret;                                            
 }
 
-std::vector<torch::Tensor> shift2d_backward_cpu(const torch::Tensor& grad,
-                                                 const torch::Tensor& weights,
-                                                 const torch::Tensor& input,
-                                                 const torch::Tensor& borders,
-                                                 int64_t padding_mode,
-                                                 bool active_flag){
-    std::vector<torch::Tensor> ret;
+std::tuple<torch::Tensor, torch::Tensor> shift2d_backward(const torch::Tensor& grad,
+                                                          const torch::Tensor& weights,
+                                                          const torch::Tensor& input,
+                                                          const torch::Tensor& borders,
+                                                          int64_t padding_mode,
+                                                          bool active_flag){
+    std::tuple<torch::Tensor, torch::Tensor> ret;
     switch (padding_mode){        
         case 0:
-            ret = active_flag?shiftnd_backward_cpu<2,BIPadding::Zeros,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<2,BIPadding::Zeros,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<2,BIPadding::Zeros,true>(grad, weights, input, borders):
+                              shiftnd_backward<2,BIPadding::Zeros,false>(grad, weights, input, borders);
             break;
         case 1:
-            ret = active_flag?shiftnd_backward_cpu<2,BIPadding::Border,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<2,BIPadding::Border,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<2,BIPadding::Border,true>(grad, weights, input, borders):
+                              shiftnd_backward<2,BIPadding::Border,false>(grad, weights, input, borders);
             break;
         case 2:
-            ret = active_flag?shiftnd_backward_cpu<2,BIPadding::Periodic,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<2,BIPadding::Periodic,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<2,BIPadding::Periodic,true>(grad, weights, input, borders):
+                              shiftnd_backward<2,BIPadding::Periodic,false>(grad, weights, input, borders);
             break;
         case 3:
-            ret = active_flag?shiftnd_backward_cpu<2,BIPadding::Reflect,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<2,BIPadding::Reflect,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<2,BIPadding::Reflect,true>(grad, weights, input, borders):
+                              shiftnd_backward<2,BIPadding::Reflect,false>(grad, weights, input, borders);
             break;
         case 4:
-            ret = active_flag?shiftnd_backward_cpu<2,BIPadding::Symmetric,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<2,BIPadding::Symmetric,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<2,BIPadding::Symmetric,true>(grad, weights, input, borders):
+                              shiftnd_backward<2,BIPadding::Symmetric,false>(grad, weights, input, borders);
             break;
     }
     return ret;    
 }
 
-std::vector<torch::Tensor> shift3d_backward_cpu(const torch::Tensor& grad,
-                                                 const torch::Tensor& weights,
-                                                 const torch::Tensor& input,
-                                                 const torch::Tensor& borders,
-                                                 int64_t padding_mode,
-                                                 bool active_flag){
-    std::vector<torch::Tensor> ret;
+std::tuple<torch::Tensor, torch::Tensor> shift3d_backward(const torch::Tensor& grad,
+                                                          const torch::Tensor& weights,
+                                                          const torch::Tensor& input,
+                                                          const torch::Tensor& borders,
+                                                          int64_t padding_mode,
+                                                          bool active_flag){
+    std::tuple<torch::Tensor, torch::Tensor> ret;
     switch (padding_mode){        
         case 0:
-            ret = active_flag?shiftnd_backward_cpu<3,BIPadding::Zeros,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<3,BIPadding::Zeros,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<3,BIPadding::Zeros,true>(grad, weights, input, borders):
+                              shiftnd_backward<3,BIPadding::Zeros,false>(grad, weights, input, borders);
             break;
         case 1:
-            ret = active_flag?shiftnd_backward_cpu<3,BIPadding::Border,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<3,BIPadding::Border,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<3,BIPadding::Border,true>(grad, weights, input, borders):
+                              shiftnd_backward<3,BIPadding::Border,false>(grad, weights, input, borders);
             break;
         case 2:
-            ret = active_flag?shiftnd_backward_cpu<3,BIPadding::Periodic,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<3,BIPadding::Periodic,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<3,BIPadding::Periodic,true>(grad, weights, input, borders):
+                              shiftnd_backward<3,BIPadding::Periodic,false>(grad, weights, input, borders);
             break;
         case 3:
-            ret = active_flag?shiftnd_backward_cpu<3,BIPadding::Reflect,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<3,BIPadding::Reflect,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<3,BIPadding::Reflect,true>(grad, weights, input, borders):
+                              shiftnd_backward<3,BIPadding::Reflect,false>(grad, weights, input, borders);
             break;
         case 4:
-            ret = active_flag?shiftnd_backward_cpu<3,BIPadding::Symmetric,true>(grad, weights, input, borders):
-                              shiftnd_backward_cpu<3,BIPadding::Symmetric,false>(grad, weights, input, borders);
+            ret = active_flag?shiftnd_backward<3,BIPadding::Symmetric,true>(grad, weights, input, borders):
+                              shiftnd_backward<3,BIPadding::Symmetric,false>(grad, weights, input, borders);
             break;
     }
     return ret;                                        
 }
 
+
+        
+} // end of anonymous namespace
+
+
+TORCH_LIBRARY_IMPL(torchshifts, CPU, m) {
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift1d_forward"),
+        TORCH_FN(shift1d_forward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift1d_backward"),
+        TORCH_FN(shift1d_backward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift2d_forward"),
+        TORCH_FN(shift2d_forward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift2d_backward"),
+        TORCH_FN(shift2d_backward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift3d_forward"),
+        TORCH_FN(shift3d_forward));
+    m.impl(
+        TORCH_SELECTIVE_NAME("torchshifts::_shift3d_backward"),
+        TORCH_FN(shift3d_backward));
+}
+
+} // namespace ops
+} // namespace torchshifts
 
 
 #endif

@@ -1,12 +1,15 @@
+#include "torchshifts.h"
+
 #include <Python.h>
-#include <torch/script.h>
+#include <pybind11/pybind11.h>
+#include <torch/library.h>
+
+#include "ops/ops.h"
 
 #ifdef WITH_CUDA
     #include <cuda.h>
 #endif
 
-#include "shifts.h"
-#include "shifts_ops.h"
 
 
 #ifdef _WIN32
@@ -18,6 +21,7 @@
 #endif
 
 namespace shifts {
+    
     int64_t cuda_version() {
         #ifdef WITH_CUDA
             return CUDA_VERSION;
@@ -25,11 +29,12 @@ namespace shifts {
             return -1;
         #endif
     }
-} 
 
-TORCH_LIBRARY(torchshifts, m) {
-    m.def("shift1d", &shift1d);
-    m.def("shift2d", &shift2d);
-    m.def("shift3d", &shift3d);
-    m.def("_cuda_version", &shifts::cuda_version);
+}
+
+TS_TORCH_LIBRARY_FRAGMENT(torchshifts, m) {
+        m.def("_cuda_version", &shifts::cuda_version);
+        m.def("shift1d", &shifts::ops::shift1d);
+        m.def("shift2d", &shifts::ops::shift2d);
+        m.def("shift3d", &shifts::ops::shift3d);    
 }

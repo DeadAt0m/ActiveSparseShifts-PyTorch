@@ -4,6 +4,8 @@ torchshifts.egg-info/
 */**/__pycache__
 */__pycache__
 */*.pyc
+**/*.ipynb_checkpoints/
+*.txt
 */**/*.pyc
 */**/**/*.pyc
 */**/*~
@@ -23,3 +25,4 @@ gen.yml
 .vscode/
 *.orig
 *-checkpoint.ipynb
+torchshifts/version.py
