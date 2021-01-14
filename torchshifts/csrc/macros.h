@@ -9,7 +9,7 @@
 
 
 #ifdef _WIN32
-#if defined(TORCHXIVOPS_EXPORTS)
+#if defined(TORCHSHIFTS_EXPORTS)
 #define API_EXPORT __declspec(dllexport)
 #else
 #define API_EXPORT __declspec(dllimport)
