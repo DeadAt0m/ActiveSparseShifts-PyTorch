@@ -6,7 +6,7 @@
 #include "../kernels/shifts_kernels.h"
 #include <torch/library.h>
 
-namespace torchshifts {
+namespace shifts {
 namespace ops {
 
 namespace {
@@ -480,7 +480,7 @@ TORCH_LIBRARY_IMPL(torchshifts, CPU, m) {
 }
 
 } // namespace ops
-} // namespace torchshifts
+} // namespace shifts
 
 
 #endif
