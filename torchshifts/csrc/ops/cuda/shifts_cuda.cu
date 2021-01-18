@@ -154,7 +154,7 @@ __global__ void shiftnd_backward_kernel(const idx_t n_threads,
         shift_backward_kernel_nchwd<scalar_t, idx_t, kSpatialDim, padding_mode, active>(
                     grad_input_ptr, input_ptr, grad_output_ptr,
                     weights_ptr, dweights_ptr, grad_weights_ptr,
-                    n, c, i, j, k, sizeH, sizeW, sizeD,
+                    n, c, i, j, k, sizeC, sizeH, sizeW, sizeD,
                     grad_input_sN, grad_input_sC, grad_input_sH, grad_input_sW, grad_input_sD,
                     input_sN, input_sC, input_sH, input_sW, input_sD,
                     grad_output_sN, grad_output_sC, grad_output_sH, grad_output_sW, grad_output_sD,

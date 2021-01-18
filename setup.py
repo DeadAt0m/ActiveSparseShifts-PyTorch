@@ -78,7 +78,7 @@ def get_extensions():
     extension = CppExtension
 
     define_macros = []
-    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-O3',]}
+    extra_compile_args = {'cxx':[f'-std={STD_VERSION}', '-O3']}
 
     parallel_method = ['-DAT_PARALLEL_NATIVE=1']
     if sys.platform == 'win32':
@@ -87,6 +87,7 @@ def get_extensions():
         define_macros += [('TORCHSHIFTS_EXPORTS', None)]
     if sys.platform == 'linux':
         extra_compile_args['cxx'].append('-Wno-unused-but-set-variable')
+        extra_compile_args['cxx'].append('-Wno-unused-variable')
         if check_for_openmp():
             parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
     extra_compile_args['cxx'].extend(parallel_method)
