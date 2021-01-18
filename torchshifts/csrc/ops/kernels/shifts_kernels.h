@@ -2,6 +2,7 @@
 #include "interpolation.h"
 
 
+
 enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 
 template<typename T>
@@ -223,19 +224,25 @@ template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* input,  scalar_t* output_grad,
-                                            idx_t* weights, scalar_t* dweights, scalar_t* weights_grad,
-                                            idx_t n, idx_t c, idx_t i, idx_t j, idx_t k,
-                                            idx_t sizeH, idx_t sizeW, idx_t sizeD,
-                                            idx_t input_grad_sN, idx_t input_grad_sC, idx_t input_grad_sH, idx_t input_grad_sW, idx_t input_grad_sD,
-                                            idx_t input_sN, idx_t input_sC, idx_t input_sH, idx_t input_sW, idx_t input_sD,
-                                            idx_t output_grad_sN, idx_t output_grad_sC, idx_t output_grad_sH, idx_t output_grad_sW, idx_t output_grad_sD,
-                                            idx_t weights_sC, idx_t weights_sS, idx_t dweights_sC, idx_t dweights_sS, idx_t weights_grad_sC, idx_t weights_grad_sS,
-                                            idx_t i_left_border, idx_t j_left_border, idx_t k_left_border,
-                                            idx_t i_right_border, idx_t j_right_border, idx_t k_right_border){
+API_INLINE void shift_backward_kernel_nchwd(const scalar_t* const input_grad, const scalar_t* const input,  scalar_t* const output_grad,
+                                            const idx_t* const weights, const scalar_t* const dweights, scalar_t* const weights_grad,
+                                            const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
+                                            const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                            const idx_t input_grad_sN, const idx_t input_grad_sC, const idx_t input_grad_sH,
+                                            const idx_t input_grad_sW, const idx_t input_grad_sD,
+                                            const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
+                                            const idx_t input_sW, const idx_t input_sD,
+                                            const idx_t output_grad_sN, const idx_t output_grad_sC, const idx_t output_grad_sH,
+                                            const idx_t output_grad_sW, const idx_t output_grad_sD,
+                                            const idx_t weights_sC, const idx_t weights_sS, 
+                                            const idx_t dweights_sC, const idx_t dweights_sS,
+                                            const idx_t weights_grad_sC, const idx_t weights_grad_sS,
+                                            const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                            const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
     // i,j,k - from input
     const scalar_t* const input_grad_NC = input_grad + n*input_grad_sN + c*input_grad_sC;
     const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
+    const idx_t weights_numel = kSpatialDim * sizeC;
     const scalar_t zp = static_cast<scalar_t>(0);
        
     const idx_t shifti = *(weights+c*weights_sC);
@@ -272,16 +279,20 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
                                         0, 0, pass_cond,                                       
                                         input_NC, zp, vals_array);                         
     compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad, pass_cond, zp);    
-    ADD((weights_grad + c*weights_grad_sC),(input_grad_NCHWD_val * new_weights_grad[0]));
-    if (kSpatialDim > 1){ADD((weights_grad + c*weights_grad_sC + weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[1]));}
-    if (kSpatialDim > 2){ADD((weights_grad + c*weights_grad_sC + 2*weights_grad_sS),(input_grad_NCHWD_val * new_weights_grad[2]));}
-    
+    ADD(weights_grad, c*weights_grad_sC, weights_numel, input_grad_NCHWD_val * new_weights_grad[0]);
+    if (kSpatialDim > 1){ ADD(weights_grad, c*weights_grad_sC + weights_grad_sS, weights_numel, input_grad_NCHWD_val * new_weights_grad[1]); }
+    if (kSpatialDim > 2){ ADD(weights_grad, c*weights_grad_sC + 2*weights_grad_sS, weights_numel, input_grad_NCHWD_val * new_weights_grad[2]); }                        
+              
     // input gradient
         
     const idx_t rsi = oi + shifti;
-    const idx_t rsj = (kSpatialDim > 1)?(oj + shiftj):j;
-    const idx_t rsk = (kSpatialDim > 2)?(ok + shiftk):k;
+    const idx_t rsj = (kSpatialDim > 1)?(oj + shiftj):oj;
+    const idx_t rsk = (kSpatialDim > 2)?(ok + shiftk):ok;
     
+    const idx_t osi = oi - shifti;
+    const idx_t osj = (kSpatialDim > 1) ? (oj - shiftj) : oj;
+    const idx_t osk = (kSpatialDim > 2) ? (ok - shiftk) : ok;   
+              
     const idx_t osizeH = i_right_border - i_left_border;
     const idx_t osizeW = j_right_border - j_left_border;
     const idx_t osizeD = k_right_border - k_left_border;
@@ -289,16 +300,16 @@ API_INLINE void shift_backward_kernel_nchwd(scalar_t* input_grad, scalar_t* inpu
     if (active)
     {
         get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
-                                        rsi, osizeH, input_grad_sH,
-                                        rsj, osizeW, input_grad_sW,
-                                        rsk, osizeD, input_grad_sD,
+                                        osi, osizeH, input_grad_sH,
+                                        osj, osizeW, input_grad_sW,
+                                        osk, osizeD, input_grad_sD,
                                         0, 0, pass_cond,
                                         input_grad_NC, zp, vals_array);
          *(output_grad + n*output_grad_sN +
                          c*output_grad_sC +
                          i*output_grad_sH + 
                          j*output_grad_sW + 
-                         k*output_grad_sD) = compute_interpolated<scalar_t,idx_t,kSpatialDim,true>(
+                         k*output_grad_sD) = compute_interpolated<scalar_t,idx_t,kSpatialDim,false>(
                                                             vals_array, di, dj, dk, pass_cond, zp);
     }
     else {
@@ -411,6 +422,7 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
                                             const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
     const scalar_t* const input_grad_N = input_grad + n*input_grad_sN;
     const scalar_t* const input_N = input + n*input_sN;
+    const idx_t weights_numel = kSpatialDim * sizeC;
     const scalar_t zp = static_cast<scalar_t>(0);
     scalar_t vals_array[8] = {zp, zp, zp, zp, zp, zp, zp, zp};
     scalar_t new_weights_grad[3] = {zp, zp, zp};
@@ -441,6 +453,9 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
     idx_t rsi = oi;
     idx_t rsj = oj;
     idx_t rsk = ok;
+    idx_t osi = oi;
+    idx_t osj = oj;
+    idx_t osk = ok;
     
     const idx_t osizeH = i_right_border - i_left_border;
     const idx_t osizeW = j_right_border - j_left_border;
@@ -459,17 +474,20 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
         di = *(dweights+c*dweights_sC);
         si = i - shifti;
         rsi = oi + shifti;
+        osi = oi - shifti;
         if (kSpatialDim > 1) {
             shiftj = *(w_S+c*weights_sC);
             dj = *(dw_S+c*dweights_sC);
             sj = j - shiftj;
             rsj = oj + shiftj;
+            osj = oj - shiftj;
         }
         if (kSpatialDim > 2) {
             shiftk = *(w_2S+c*weights_sC);
             dk = *(dw_2S+c*dweights_sC);
             sk = k - shiftk;
             rsk = ok + shiftk;
+            osk = ok - shiftk;
         }
         // weight gradients
         get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
@@ -480,21 +498,22 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
                                             input_N, zp, vals_array);                         
         compute_weight_gradients<scalar_t,idx_t, kSpatialDim>(vals_array, di, dj, dk, new_weights_grad, pass_cond, zp);  
         input_grad_NHWDC_val = input_grad_NHWD[c*input_grad_sC];
-        ADD((weights_grad + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[0]));
-        if (kSpatialDim > 1){ADD((weights_grad + weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[1]));}
-        if (kSpatialDim > 2){ADD((weights_grad + 2*weights_grad_sS + c*weights_grad_sC),(input_grad_NHWDC_val * new_weights_grad[2]));}
+        ADD(weights_grad, c*weights_grad_sC, weights_numel, input_grad_NHWDC_val * new_weights_grad[0]);
+        if (kSpatialDim > 1){ ADD(weights_grad, c*weights_grad_sC + weights_grad_sS, weights_numel, input_grad_NHWDC_val * new_weights_grad[1]); }
+        if (kSpatialDim > 2){ ADD(weights_grad, c*weights_grad_sC + 2*weights_grad_sS, weights_numel, input_grad_NHWDC_val * new_weights_grad[2]); }
+
         
         
         // input gradient
         if (active)
         {
             get_shifted_values<scalar_t,idx_t,kSpatialDim,padding_mode>(
-                                            rsi, osizeH, input_grad_sH,
-                                            rsj, osizeW, input_grad_sW,
-                                            rsk, osizeD, input_grad_sD,
+                                            osi, osizeH, input_grad_sH,
+                                            osj, osizeW, input_grad_sW,
+                                            osk, osizeD, input_grad_sD,
                                             c, input_grad_sC, pass_cond,
                                             input_grad_N, zp, vals_array);
-            *(output_grad_NHWD+c*output_grad_sC) = compute_interpolated<scalar_t,idx_t,kSpatialDim,true>(
+            *(output_grad_NHWD+c*output_grad_sC) = compute_interpolated<scalar_t,idx_t,kSpatialDim,false>(
                                                                         vals_array, di, dj, dk, pass_cond, zp);
         }
         else {

@@ -192,7 +192,7 @@ API_INLINE void shiftnd_backward_kernel(const torch::Tensor& grad_input,
                                                         padding_mode, active>(
                                     grad_input_ptr, input_ptr, grad_output_ptr,
                                     weights_ptr, dweights_ptr, grad_weights_ptr,
-                                    n, c, i, j, k, sizeH, sizeW, sizeD,
+                                    n, c, i, j, k, sizeC, sizeH, sizeW, sizeD,
                                     grad_input_sN, grad_input_sC, grad_input_sH,
                                     grad_input_sW, grad_input_sD,
                                     input_sN, input_sC, input_sH, input_sW, input_sD,

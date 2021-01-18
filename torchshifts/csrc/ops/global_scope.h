@@ -11,7 +11,7 @@
     #define MIN(a,b) (std::min(a,b))
     #define MAX(a,b) (std::max(a,b))
     #define ABS(a) (std::abs(a))
-    #define ADD(a,b) (*a += b)
+    #define ADD(tensor, idx, numel, val) ( *(tensor+idx)+=val )
     #if (defined __cpp_inline_variables) || __cplusplus >= 201703L
         #define API_INLINE inline
     #else 
@@ -23,14 +23,16 @@
     #endif
 #endif
 #ifdef _SHIFTS_CUDA
-    #include <THC/THCAtomics.cuh>
+//     #include <THC/THCAtomics.cuh>
+    #include <ATen/native/cuda/KernelUtils.cuh>
+
     #define ROUND(a) (::round(a))
     #define FLOOR(a) (::floor(a))
     #define CEIL(a) (::ceil(a))
     #define MIN(a,b) (::min(a,b))
     #define MAX(a,b) (::max(a,b))
     #define ABS(a) (::abs(a))
-    #define ADD(a,b) (gpuAtomicAdd(a,b))
+    #define ADD(tensor, idx, numel, val) ( at::native::fastSpecializedAtomicAdd(tensor, idx, numel, val))
     #define API_INLINE __device__ __forceinline__
 
     const int LOCAL_CUDA_NUM_THREADS = CUDA_THREADS;
