@@ -175,9 +175,7 @@ inline void weights_init_forward(const torch::Tensor& weights,
                                                               .add_input(weights).build();          
     
     at::native::gpu_kernel_multiple_outputs(iter, [=] GPU_LAMBDA (scalar_t src) -> thrust::tuple<scalar_t, scalar_t> {
-                scalar_t iw = active?((src>0)?static_cast<scalar_t>(FLOOR(src)):
-                                              static_cast<scalar_t>(CEIL(src))):
-                                       static_cast<scalar_t>(ROUND(src));
+                scalar_t iw = active?static_cast<scalar_t>(FLOOR(src)):static_cast<scalar_t>(ROUND(src));
                 scalar_t dw = active?(src - iw):static_cast<scalar_t>(0);
         
                 return {iw, dw};
@@ -193,7 +191,8 @@ inline void weights_init_backward(const torch::Tensor& weights,
                                                               .add_input(weights).build();          
     
     at::native::gpu_kernel_multiple_outputs(iter, [=] GPU_LAMBDA (scalar_t src) -> thrust::tuple<scalar_t, scalar_t> {
-                scalar_t dw = (src>0)?(src - static_cast<scalar_t>FLOOR(src)):(src - static_cast<scalar_t>CEIL(src));
+                scalar_t dw = active?(src - static_cast<scalar_t>FLOOR(src)):(src>0)?(src - static_cast<scalar_t>FLOOR(src)):
+                                                                                     (src - static_cast<scalar_t>CEIL(src));
                 scalar_t iw = active?(src-dw):static_cast<scalar_t>(ROUND(src));
                 return {iw, dw};
     });          

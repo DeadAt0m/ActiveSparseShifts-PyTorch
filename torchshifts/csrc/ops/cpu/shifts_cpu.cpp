@@ -221,8 +221,7 @@ torch::Tensor shiftnd_forward(const torch::Tensor& input,
     
     torch::Tensor output =  torch::empty(new_size, input.options(), LEGACY_CONTIGUOUS_MEMORY_FORMAT);
 
-    torch::Tensor iweights = (active?torch::where(weights>0, torch::floor(weights), torch::ceil(weights)):
-                                     torch::round(weights)).to(torch::kLong);
+    torch::Tensor iweights = (active?torch::floor(weights):torch::round(weights)).to(torch::kLong);
     torch::Tensor dweights = active?(weights - iweights):torch::zeros_like(weights, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
               
     torch::Tensor _borders = borders.to(torch::kLong);
@@ -242,8 +241,8 @@ std::tuple<torch::Tensor, torch::Tensor> shiftnd_backward(const torch::Tensor& g
                                                           const torch::Tensor& borders) {
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
     
-    torch::Tensor dweights = torch::where(weights>0,weights - torch::floor(weights), 
-                                                    weights - torch::ceil(weights));          
+    torch::Tensor dweights = active?(weights - torch::floor(weights)):torch::where(weights>0,weights - torch::floor(weights), 
+                                                                                             weights - torch::ceil(weights));          
     torch::Tensor iweights = (active?(weights - dweights):torch::round(weights)).to(torch::kLong);
 
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
