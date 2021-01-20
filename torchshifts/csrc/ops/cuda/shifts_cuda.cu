@@ -192,7 +192,7 @@ inline void weights_init_backward(const torch::Tensor& weights,
     
     at::native::gpu_kernel_multiple_outputs(iter, [=] GPU_LAMBDA (scalar_t src) -> thrust::tuple<scalar_t, scalar_t> {
                 scalar_t dw = active?(src - static_cast<scalar_t>FLOOR(src)):(src>0)?(src - static_cast<scalar_t>FLOOR(src)):
-                                                                                     (src - static_cast<scalar_t>CEIL(src));
+                                                                                     (static_cast<scalar_t>CEIL(src) - src);
                 scalar_t iw = active?(src-dw):static_cast<scalar_t>(ROUND(src));
                 return {iw, dw};
     });          

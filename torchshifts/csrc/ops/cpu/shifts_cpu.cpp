@@ -242,7 +242,7 @@ std::tuple<torch::Tensor, torch::Tensor> shiftnd_backward(const torch::Tensor& g
     std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
     
     torch::Tensor dweights = active?(weights - torch::floor(weights)):torch::where(weights>0,weights - torch::floor(weights), 
-                                                                                             weights - torch::ceil(weights));          
+                                                                                             torch::ceil(weights) - weights);          
     torch::Tensor iweights = (active?(weights - dweights):torch::round(weights)).to(torch::kLong);
 
     torch::Tensor out_grad = torch::empty_like(input, LEGACY_CONTIGUOUS_MEMORY_FORMAT);
