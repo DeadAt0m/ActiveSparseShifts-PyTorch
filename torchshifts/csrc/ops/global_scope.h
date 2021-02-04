@@ -16,7 +16,7 @@
         #define API_INLINE inline
     #else 
     #ifdef _MSC_VER
-        #define API_INLINE __declspec(selectany)
+        #define API_INLINE __inline
     #else
         #define API_INLINE __attribute__((weak))
     #endif
