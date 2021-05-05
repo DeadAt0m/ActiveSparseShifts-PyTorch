@@ -1,5 +1,5 @@
-#ifndef _SHIFTS_CPU
-#define _SHIFTS_CPU
+#ifndef SHIFTS_CPU
+#define SHIFTS_CPU
 
 #include <torch/extension.h>
 #include "../global_scope.h"
@@ -211,13 +211,12 @@ API_INLINE void shiftnd_backward_kernel(const torch::Tensor& grad_input,
 }
 
 
-template <int nD, BIPadding padding_mode = BIPadding::Zeros,
+template <const int nD, BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
 torch::Tensor shiftnd_forward(const torch::Tensor& input,
                               const torch::Tensor& weights,
                               const torch::Tensor& borders,
                               const std::vector<int64_t>& new_size){
-    std::string name = "shift"+std::to_string(nD)+"d_forward_cpu";
     
     torch::Tensor output =  torch::empty(new_size, input.options(), LEGACY_CONTIGUOUS_MEMORY_FORMAT);
 
@@ -226,21 +225,20 @@ torch::Tensor shiftnd_forward(const torch::Tensor& input,
               
     torch::Tensor _borders = borders.to(torch::kLong);
     
-    AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), name, [&] {
+    AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "shiftnd_forward_cpu", [&] {
         shiftnd_forward_kernel<scalar_t, nD, padding_mode, active>(input, iweights, dweights, _borders, output);
     });
     return output;
 }
 
 
-template <int nD, BIPadding padding_mode = BIPadding::Zeros,
+template <const int nD, BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
 std::tuple<torch::Tensor, torch::Tensor> shiftnd_backward(const torch::Tensor& grad,
                                                           const torch::Tensor& weights,
                                                           const torch::Tensor& input,
                                                           const torch::Tensor& borders) {
-    std::string name = "shift"+std::to_string(nD)+"d_backward_cpu";
-    
+
     torch::Tensor dweights = active?(weights - torch::floor(weights)):torch::where(weights>0,weights - torch::floor(weights), 
                                                                                              torch::ceil(weights) - weights);          
     torch::Tensor iweights = (active?(weights - dweights):torch::round(weights)).to(torch::kLong);
@@ -250,7 +248,7 @@ std::tuple<torch::Tensor, torch::Tensor> shiftnd_backward(const torch::Tensor& g
     
     torch::Tensor _borders = borders.to(torch::kLong);
 
-    AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), name, [&] {
+    AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "shiftnd_backward_cpu", [&] {
         shiftnd_backward_kernel<scalar_t, nD, padding_mode, active>(grad, iweights, dweights, input, _borders, out_grad, weights_grad);
     });
     return std::make_tuple(out_grad, weights_grad);

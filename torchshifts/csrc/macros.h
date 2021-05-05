@@ -1,10 +1,11 @@
 #pragma once
  
-
-#ifdef TORCH18
+#if defined(TORCH18)
     #define TS_TORCH_LIBRARY_FRAGMENT(ns,m) TORCH_LIBRARY_FRAGMENT(ns, m)
-#else
+#elif defined(TORCH17)
     #define TS_TORCH_LIBRARY_FRAGMENT(ns,m) TORCH_LIBRARY_FRAGMENT_THIS_API_IS_FOR_PER_OP_REGISTRATION_ONLY(ns, m)
+#else
+   #define TS_TORCH_LIBRARY_FRAGMENT(ns,m) TORCH_LIBRARY(ns, m)
 #endif
 
 

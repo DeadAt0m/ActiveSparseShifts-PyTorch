@@ -1,12 +1,13 @@
 '''
-    This file partly was taken from torchvision
+    This file was partly taken from torchvision
 '''
 
 _HAS_OPS = False
+error_str = ''
+
 
 def _has_ops():
     return False
-
 
 def _register_extensions():
     from pathlib import Path 
@@ -18,7 +19,7 @@ def _register_extensions():
     # load the custom_op_library and register the custom ops
     lib_dir = Path(__file__).resolve().parent
     if os.name == 'nt':
-        # Register the main torchshifts library location on the default DLL path
+        # Register the main torchsrrops library location on the default DLL path
         import ctypes
         kernel32 = ctypes.WinDLL('kernel32.dll', use_last_error=True)
         with_load_library_flags = hasattr(kernel32, 'AddDllDirectory')
@@ -50,9 +51,9 @@ try:
 
     def _has_ops():
         return True
-except (ImportError, OSError):
+except (ImportError, OSError) as e:
+    error_str = str(e)
     pass
-
 
 def _assert_has_ops():
     if not _has_ops():
@@ -63,6 +64,7 @@ def _assert_has_ops():
             "https://github.com/DeadAt0m/ActiveSparseShifts-PyTorch/blob/master/README.md for the compatibility matrix. "
             "Please check your PyTorch version with torch.__version__ and verify if it is compatible, and if not "
             "please reinstall your PyTorch."
+            f"\n\nImport error details:\n\t{error_str}"
         )
 
 
@@ -86,12 +88,11 @@ def _check_cuda_version():
         t_version = t_version.split('.')
         t_major = int(t_version[0])
         t_minor = int(t_version[1])
-        if t_major != ts_major or t_minor != ts_minor:
+        if t_major != ts_major or t_minor > ts_minor:
             raise RuntimeError("Detected that PyTorch and torchshifts were compiled with different CUDA versions. "
                                "PyTorch has CUDA Version={}.{} and torchshifts has CUDA Version={}.{}. "
                                "Please reinstall the torchshifts that matches your PyTorch install."
                                .format(t_major, t_minor, ts_major, ts_minor))
     return _version
-
 
 _check_cuda_version()

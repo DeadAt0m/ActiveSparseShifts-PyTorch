@@ -1,6 +1,7 @@
 #pragma once
 
 #include <torch/extension.h>
+#include <torch/library.h>
 #include "../macros.h"
 
 namespace shifts {

@@ -1,5 +1,5 @@
 MODULE_NAME = 'torchshifts' 
-MODULE_VERSION = '3.0'
+MODULE_VERSION = '3.1'
 #DO  NOT CHANGE ON EARLIER STANDARDS PLEASE
 #(We use c++17 for using "constexpr" in our code)
 STD_VERSION = "c++17"
@@ -20,29 +20,25 @@ cwd = Path.cwd()
 torch_ver = torch.__version__
 torch_ver = torch_ver.split('+')[0] if '+' in torch_ver else torch_ver
 
-
 requirements = [f'torch >= {PYTORCH_VERSION}']
+
+#cuda
+cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
+cu_ver = ''
+if cuda_avail:
+    if CUDA_HOME is not None:
+        cu_ver = Path(CUDA_HOME).resolve().name.strip('cuda-')
+    elif cuda_available():
+        cu_ver = copy(torch_version.cuda)
+    if cu_ver:
+        cu_ver = 'cu' + cu_ver
 
 if torch_ver < '1.8':
     from torch_patch import  patch_torch_infer_schema_h
     __SUCC =  patch_torch_infer_schema_h()
     if not __SUCC:
         print('Something went wrong during patching! The CUDA build have chance to fail!')
-
-
-#cuda
-cuda_avail =  (cuda_available() and (CUDA_HOME is not None)) or os.getenv('FORCE_CUDA', '0') == '1'
-if cuda_avail:
-    cu_ver = ''
-    if CUDA_HOME is not None:
-        cu_ver = Path(CUDA_HOME).resolve().name.strip('cuda-')
-    elif cuda_available():
-        cu_ver = torch_version.cuda
-    if cu_ver:
-        cu_ver = '+cu' + cu_ver
-    cu_ver = cu_ver.replace('.','')
-    MODULE_VERSION += cu_ver
-
+MODULE_VERSION += f'+{cu_ver if cu_ver else ""}torch{torch_ver.strip("0").strip(".")}'
 
 version = copy.copy(MODULE_VERSION)
 sha = 'Unknown'
@@ -66,6 +62,7 @@ version_path.write("if _check_cuda_version() > 0:\n")
 version_path.write("    cuda = _check_cuda_version()\n")
 version_path.close()
 
+
 def get_extensions():
     extensions_dir = cwd / MODULE_NAME / 'csrc'
 
@@ -88,6 +85,8 @@ def get_extensions():
     if sys.platform == 'linux':
         extra_compile_args['cxx'].append('-Wno-unused-but-set-variable')
         extra_compile_args['cxx'].append('-Wno-unused-variable')
+        extra_compile_args['cxx'].append('-Wno-sign-compare')
+        extra_compile_args['cxx'].extend(['-Wno-unknown-pragmas','-Wno-unused-function'])
         if check_for_openmp():
             parallel_method = ['-fopenmp','-DAT_PARALLEL_OPENMP=1']
     extra_compile_args['cxx'].extend(parallel_method)
@@ -101,9 +100,15 @@ def get_extensions():
         if os.getenv('NVCC_FLAGS', '') != '':
             extra_compile_args['nvcc'].extend(os.getenv('NVCC_FLAGS', '').split(' '))
   
+    # time to dirty things
     if torch_ver >= '1.8':
-        define_macros += [('TORCH1.8', None)]
-
+        define_macros += [('TORCH18', None)]
+    elif torch_ver >= '1.7':
+        define_macros += [('TORCH17', None)]
+    else:
+        print(f'PyTorch Version <1.7 is not supported! Your version is {torch_ver}. Please update and try again')
+        quit()
+        
     sources = list(set(map(lambda x: str(x.resolve()), sources)))
     include_dirs = [str(extensions_dir)]
     ext_modules = [

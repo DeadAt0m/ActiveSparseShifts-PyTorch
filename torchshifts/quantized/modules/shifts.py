@@ -1,8 +1,8 @@
 import torch
 import math
 import copy
-import torchshifts.modules.shifts as shifts
 from torchshifts.quantized.functional import shift1d_quantized, shift2d_quantized, shift3d_quantized
+import torchshifts.modules.shifts as shifts
 
 
 rp_dict = {v: k for k, v in shifts.paddings_dict.items()}
@@ -71,7 +71,3 @@ class Shift3d(shifts.Shift3d):
         qshift.weight = mod.weight
         qshift.qweight = quantize_shift_weights(mod.weight.float())
         return qshift
-    
-
-quant_mapping = copy.deepcopy(torch.quantization.quantization_mappings.get_static_quant_module_mappings())
-quant_mapping.update({shifts.Shift1d: Shift1d, shifts.Shift2d: Shift2d, shifts.Shift3d: Shift3d})

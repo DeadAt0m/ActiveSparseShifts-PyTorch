@@ -2,14 +2,13 @@
 #include "interpolation.h"
 
 
-
 enum class BIPadding {Zeros, Border, Periodic, Reflect, Symmetric};
 
 template<typename T>
-API_INLINE T mod(const T a, const T b){return (b + (a % b)) % b;}
+API_DEVICE API_INLINE T mod(const T a, const T b){return (b + (a % b)) % b;}
 
 template<typename idx_t, BIPadding padding_mode = BIPadding::Zeros>
-API_INLINE idx_t infer_index(const idx_t index, const idx_t len){    
+API_DEVICE API_INLINE idx_t infer_index(const idx_t index, const idx_t len){    
     bool odd_seq;
     switch (padding_mode){        
         case BIPadding::Zeros:
@@ -33,11 +32,11 @@ API_INLINE idx_t infer_index(const idx_t index, const idx_t len){
 template<typename scalar_t, typename idx_t, 
          int kSpatialDim = 1,
          BIPadding padding_mode = BIPadding::Zeros>
-API_INLINE scalar_t get_shifted_value(const idx_t i_shifted, const idx_t sizeH, const idx_t strideH,
-                                      const idx_t j_shifted, const idx_t sizeW, const idx_t strideW,
-                                      const idx_t k_shifted, const idx_t sizeD, const idx_t strideD,
-                                      const idx_t c, const idx_t strideC, const bool out_passcond,
-                                      const scalar_t* const array, const scalar_t zero_point){
+API_DEVICE API_INLINE scalar_t get_shifted_value(const idx_t i_shifted, const idx_t sizeH, const idx_t strideH,
+                                                 const idx_t j_shifted, const idx_t sizeW, const idx_t strideW,
+                                                 const idx_t k_shifted, const idx_t sizeD, const idx_t strideD,
+                                                 const idx_t c, const idx_t strideC, const bool out_passcond,
+                                                 const scalar_t* const array, const scalar_t zero_point){
     const idx_t tidx_i = (sizeH==1)?0:infer_index<idx_t,padding_mode>(i_shifted, sizeH);
     const idx_t pass_cond_i = static_cast<idx_t>(tidx_i>=0);
     const idx_t isH = tidx_i*strideH*pass_cond_i;
@@ -59,12 +58,12 @@ API_INLINE scalar_t get_shifted_value(const idx_t i_shifted, const idx_t sizeH, 
 template<typename scalar_t, typename idx_t,
          int kSpatialDim = 1,
          BIPadding padding_mode = BIPadding::Zeros>
-API_INLINE void get_shifted_values(const idx_t i_shifted, const idx_t sizeH, const idx_t strideH,
-                                   const idx_t j_shifted, const idx_t sizeW, const idx_t strideW,
-                                   const idx_t k_shifted, const idx_t sizeD, const idx_t strideD,
-                                   const idx_t c, const idx_t strideC, const bool out_passcond,
-                                   const scalar_t* const array, const scalar_t zero_point,
-                                   scalar_t* const output_values){
+API_DEVICE API_INLINE void get_shifted_values(const idx_t i_shifted, const idx_t sizeH, const idx_t strideH,
+                                              const idx_t j_shifted, const idx_t sizeW, const idx_t strideW,
+                                              const idx_t k_shifted, const idx_t sizeD, const idx_t strideD,
+                                              const idx_t c, const idx_t strideC, const bool out_passcond,
+                                              const scalar_t* const array, const scalar_t zero_point,
+                                              scalar_t* const output_values){
     output_values[0] = get_shifted_value<scalar_t, idx_t, kSpatialDim, padding_mode>(
                                          i_shifted, sizeH, strideH, j_shifted, sizeW, strideW,
                                          k_shifted, sizeD, strideD, c, strideC,
@@ -104,14 +103,14 @@ API_INLINE void get_shifted_values(const idx_t i_shifted, const idx_t sizeH, con
 }
 
 template <typename scalar_t, bool reverse>
-API_INLINE scalar_t rev_shift(const scalar_t diff_shift){
+API_DEVICE API_INLINE scalar_t rev_shift(const scalar_t diff_shift){
     return (reverse)?(static_cast<scalar_t>(1)-diff_shift):diff_shift;
 }
 
 template <typename scalar_t, typename idx_t, int kSpatialDim = 1, bool reverse = false>
-API_INLINE scalar_t compute_interpolated(const scalar_t* const v, const scalar_t diff_shiftH, 
-                                         const scalar_t diff_shiftW, const scalar_t diff_shiftD,
-                                         const bool pass_cond, const scalar_t zp){
+API_DEVICE API_INLINE scalar_t compute_interpolated(const scalar_t* const v, const scalar_t diff_shiftH, 
+                                                    const scalar_t diff_shiftW, const scalar_t diff_shiftD,
+                                                    const bool pass_cond, const scalar_t zp){
     switch (kSpatialDim){        
         case 3:
             return pass_cond?interp3D(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
@@ -131,8 +130,8 @@ API_INLINE scalar_t compute_interpolated(const scalar_t* const v, const scalar_t
 }
 
 template <typename scalar_t, typename idx_t, int kSpatialDim = 1>
-API_INLINE void compute_weight_gradients(const scalar_t* const v, const scalar_t diff_shiftH, const scalar_t diff_shiftW, const scalar_t diff_shiftD,
-                                         scalar_t* const output_grad, const bool pass_cond, const scalar_t zp){
+API_DEVICE API_INLINE void compute_weight_gradients(const scalar_t* const v, const scalar_t diff_shiftH, const scalar_t diff_shiftW, const scalar_t diff_shiftD,
+                                                    scalar_t* const output_grad, const bool pass_cond, const scalar_t zp){
     switch (kSpatialDim){        
         case 3:
             output_grad[0]=pass_cond?interp3D_dx(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
@@ -158,15 +157,15 @@ template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void shift_forward_kernel_nchwd(const scalar_t* const input, scalar_t* const output,
-                                           const idx_t* const weights, const scalar_t* const dweights,
-                                           const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
-                                           const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
-                                           const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, const idx_t input_sW, const idx_t input_sD,
-                                           const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, const idx_t output_sW, const idx_t output_sD,
-                                           const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, const idx_t dweights_sS,
-                                           const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
-                                           const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+API_DEVICE API_INLINE void shift_forward_kernel_nchwd(const scalar_t* const input, scalar_t* const output,
+                                                      const idx_t* const weights, const scalar_t* const dweights,
+                                                      const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
+                                                      const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                                      const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, const idx_t input_sW, const idx_t input_sD,
+                                                      const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, const idx_t output_sW, const idx_t output_sD,
+                                                      const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, const idx_t dweights_sS,
+                                                      const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                                      const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
     const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
     const scalar_t zp = static_cast<scalar_t>(0);
               
@@ -224,21 +223,21 @@ template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void shift_backward_kernel_nchwd(const scalar_t* const input_grad, const scalar_t* const input,  scalar_t* const output_grad,
-                                            const idx_t* const weights, const scalar_t* const dweights, scalar_t* const weights_grad,
-                                            const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
-                                            const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
-                                            const idx_t input_grad_sN, const idx_t input_grad_sC, const idx_t input_grad_sH,
-                                            const idx_t input_grad_sW, const idx_t input_grad_sD,
-                                            const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
-                                            const idx_t input_sW, const idx_t input_sD,
-                                            const idx_t output_grad_sN, const idx_t output_grad_sC, const idx_t output_grad_sH,
-                                            const idx_t output_grad_sW, const idx_t output_grad_sD,
-                                            const idx_t weights_sC, const idx_t weights_sS, 
-                                            const idx_t dweights_sC, const idx_t dweights_sS,
-                                            const idx_t weights_grad_sC, const idx_t weights_grad_sS,
-                                            const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
-                                            const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+API_DEVICE API_INLINE void shift_backward_kernel_nchwd(const scalar_t* const input_grad, const scalar_t* const input,  scalar_t* const output_grad,
+                                                       const idx_t* const weights, const scalar_t* const dweights, scalar_t* const weights_grad,
+                                                       const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
+                                                       const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                                       const idx_t input_grad_sN, const idx_t input_grad_sC, const idx_t input_grad_sH,
+                                                       const idx_t input_grad_sW, const idx_t input_grad_sD,
+                                                       const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
+                                                       const idx_t input_sW, const idx_t input_sD,
+                                                       const idx_t output_grad_sN, const idx_t output_grad_sC, const idx_t output_grad_sH,
+                                                       const idx_t output_grad_sW, const idx_t output_grad_sD,
+                                                       const idx_t weights_sC, const idx_t weights_sS, 
+                                                       const idx_t dweights_sC, const idx_t dweights_sS,
+                                                       const idx_t weights_grad_sC, const idx_t weights_grad_sS,
+                                                       const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                                       const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
     // i,j,k - from input
     const scalar_t* const input_grad_NC = input_grad + n*input_grad_sN + c*input_grad_sC;
     const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
@@ -332,15 +331,15 @@ template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void shift_forward_kernel_nhwdc(const scalar_t* const input, scalar_t* const output, 
-                                           const idx_t* const weights, const scalar_t* const dweights,
-                                           const idx_t n, const idx_t i, const idx_t j, const idx_t k,
-                                           const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
-                                           const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, const idx_t input_sW, const idx_t input_sD,
-                                           const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, const idx_t output_sW, const idx_t output_sD,
-                                           const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, const idx_t dweights_sS,
-                                           const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
-                                           const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+API_DEVICE API_INLINE void shift_forward_kernel_nhwdc(const scalar_t* const input, scalar_t* const output, 
+                                                      const idx_t* const weights, const scalar_t* const dweights,
+                                                      const idx_t n, const idx_t i, const idx_t j, const idx_t k,
+                                                      const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                                      const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, const idx_t input_sW, const idx_t input_sD,
+                                                      const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, const idx_t output_sW, const idx_t output_sD,
+                                                      const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, const idx_t dweights_sS,
+                                                      const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                                      const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
     const scalar_t* input_N = input + n*input_sN;
     const scalar_t zp = static_cast<scalar_t>(0);          
     
@@ -404,22 +403,22 @@ template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros,
           bool active = false>
-API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, const scalar_t* const input, 
-                                            scalar_t* const output_grad,
-                                            const idx_t* const weights, const scalar_t* const dweights, 
-                                            scalar_t* const weights_grad,
-                                            const idx_t n, const idx_t i, const idx_t j, const idx_t k,
-                                            const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
-                                            const idx_t input_grad_sN, const idx_t input_grad_sC, const idx_t input_grad_sH,
-                                            const idx_t input_grad_sW, const idx_t input_grad_sD,
-                                            const idx_t input_sN, const idx_t input_sC, const idx_t input_sH,
-                                            const idx_t input_sW, const idx_t input_sD,
-                                            const idx_t output_grad_sN, const idx_t output_grad_sC, const idx_t output_grad_sH,
-                                            const idx_t output_grad_sW, const idx_t output_grad_sD,
-                                            const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, 
-                                            const idx_t dweights_sS, const idx_t weights_grad_sC, const idx_t weights_grad_sS,
-                                            const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
-                                            const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
+API_DEVICE API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, const scalar_t* const input, 
+                                                       scalar_t* const output_grad,
+                                                       const idx_t* const weights, const scalar_t* const dweights, 
+                                                       scalar_t* const weights_grad,
+                                                       const idx_t n, const idx_t i, const idx_t j, const idx_t k,
+                                                       const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                                       const idx_t input_grad_sN, const idx_t input_grad_sC, const idx_t input_grad_sH,
+                                                       const idx_t input_grad_sW, const idx_t input_grad_sD,
+                                                       const idx_t input_sN, const idx_t input_sC, const idx_t input_sH,
+                                                       const idx_t input_sW, const idx_t input_sD,
+                                                       const idx_t output_grad_sN, const idx_t output_grad_sC, const idx_t output_grad_sH,
+                                                       const idx_t output_grad_sW, const idx_t output_grad_sD,
+                                                       const idx_t weights_sC, const idx_t weights_sS, const idx_t dweights_sC, 
+                                                       const idx_t dweights_sS, const idx_t weights_grad_sC, const idx_t weights_grad_sS,
+                                                       const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                                       const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border){
     const scalar_t* const input_grad_N = input_grad + n*input_grad_sN;
     const scalar_t* const input_N = input + n*input_sN;
     const idx_t weights_numel = kSpatialDim * sizeC;
@@ -528,22 +527,23 @@ API_INLINE void shift_backward_kernel_nhwdc(const scalar_t* const input_grad, co
 }
 
 
+
 /////////QUANTIZED
 template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros>
-API_INLINE void shift_forward_kernel_nchwd_q(const scalar_t* const input, scalar_t* const output,
-                                             const idx_t* const weights,
-                                             const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
-                                             const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
-                                             const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
-                                             const idx_t input_sW, const idx_t input_sD,
-                                             const idx_t output_sN, const idx_t output_sC, const idx_t output_sH,
-                                             const idx_t output_sW, const idx_t output_sD,
-                                             const idx_t weights_sC, const idx_t weights_sS,
-                                             const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
-                                             const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border,
-                                             const scalar_t zero_point, const idx_t weights_zero_point){
+API_DEVICE API_INLINE void shift_forward_kernel_nchwd_q(const scalar_t* const input, scalar_t* const output,
+                                                        const idx_t* const weights,
+                                                        const idx_t n, const idx_t c, const idx_t i, const idx_t j, const idx_t k,
+                                                        const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                                        const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
+                                                        const idx_t input_sW, const idx_t input_sD,
+                                                        const idx_t output_sN, const idx_t output_sC, const idx_t output_sH,
+                                                        const idx_t output_sW, const idx_t output_sD,
+                                                        const idx_t weights_sC, const idx_t weights_sS,
+                                                        const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                                        const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border,
+                                                        const scalar_t zero_point, const idx_t weights_zero_point){
     const scalar_t* const input_NC = input + n*input_sN + c*input_sC;
               
     const idx_t oi = i - i_left_border;
@@ -574,18 +574,18 @@ API_INLINE void shift_forward_kernel_nchwd_q(const scalar_t* const input, scalar
 template <typename scalar_t, typename idx_t,
           int kSpatialDim = 1,
           BIPadding padding_mode = BIPadding::Zeros>
-API_INLINE void shift_forward_kernel_nhwdc_q(const scalar_t* const input, scalar_t* const output, 
-                                             const idx_t* const weights,
-                                             const idx_t n, const idx_t i, const idx_t j, const idx_t k,
-                                             const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
-                                             const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
-                                             const idx_t input_sW, const idx_t input_sD,
-                                             const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, 
-                                             const idx_t output_sW, const idx_t output_sD,
-                                             const idx_t weights_sC, const idx_t weights_sS,
-                                             const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
-                                             const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border,
-                                             const scalar_t zero_point, const idx_t weights_zero_point){
+API_DEVICE API_INLINE void shift_forward_kernel_nhwdc_q(const scalar_t* const input, scalar_t* const output, 
+                                                        const idx_t* const weights,
+                                                        const idx_t n, const idx_t i, const idx_t j, const idx_t k,
+                                                        const idx_t sizeC, const idx_t sizeH, const idx_t sizeW, const idx_t sizeD,
+                                                        const idx_t input_sN, const idx_t input_sC, const idx_t input_sH, 
+                                                        const idx_t input_sW, const idx_t input_sD,
+                                                        const idx_t output_sN, const idx_t output_sC, const idx_t output_sH, 
+                                                        const idx_t output_sW, const idx_t output_sD,
+                                                        const idx_t weights_sC, const idx_t weights_sS,
+                                                        const idx_t i_left_border, const idx_t j_left_border, const idx_t k_left_border,
+                                                        const idx_t i_right_border, const idx_t j_right_border, const idx_t k_right_border,
+                                                        const scalar_t zero_point, const idx_t weights_zero_point){
     const scalar_t* input_N = input + n*input_sN;
               
     const idx_t oi = i - i_left_border;

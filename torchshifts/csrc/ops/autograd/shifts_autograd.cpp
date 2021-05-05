@@ -1,5 +1,5 @@
-#ifndef _SHIFTS_CPU
-#define _SHIFTS_CPU
+#ifndef SHIFTS_CPU
+#define SHIFTS_CPU
 
 #include "../shifts.h"
 

@@ -2,14 +2,14 @@ PyTorch implementation of Sparse Shift Layer(SSL) for 3D, 4D and 5D tensors  fro
 for Image Classification" (https://arxiv.org/pdf/1903.05285.pdf) 
 
 (**I am not the author** any of mentioned articles, I just implement this for my own purposes)
-## !NOW FOR PYTORCH 1.7 ONLY!
+## !FOR PYTORCH >= 1.7! ##
 
 ## Theory
 
 ### [Shift operation](https://en.wikipedia.org/wiki/Shift_operator): 
 
 shifts tensor data(in memory) by indexes. Value and direction of shift are learnable and different between channels.
-It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4.5x less memory consumption(in compare wiht 3x3 DepthWise ConvD).
+It might be considered as Zero-FLOP replacement of DepthWise Convolution, with 4.5x less memory consumption(in compare with 3x3 DepthWise Convolution).
 
 ### Articles summary:
 * [GroupedShift](https://arxiv.org/pdf/1711.08141.pdf): First known application of shifts operator as replace of depthwise convolution. It utilize shifts as their exact form on forward and backward, hence the shifts values (weights) are not learnable (and for simplicity applied to group of channels, see article for detail) and act like hyperparams.
@@ -31,7 +31,7 @@ It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4
   
 * Active Shift can be enabled by setting ```active_flag=True```, and ```sparsity_term=0```, because we do not need to compute regularization term(at least in original article).
   
-* Grouped Shifts are not officially supported here, however technically it possible: set  ```active_flag=False``` and ```sparsity_term=0```, freeze ```.weights``` params from gradient comptuation like ```shift_layer.weights.requires_grad = False``` (inside C function the gradient for weights will be always computed, so you will not gain in perfomance) and don't forget properly reinit ```.weights``` values(including channels groups, etc.)
+* Grouped Shifts are not officially supported here, however technically it possible: set  ```active_flag=False``` and ```sparsity_term=0```, freeze ```.weights``` params from gradient computation like ```shift_layer.weights.requires_grad = False``` (inside C function the gradient for weights will be always computed, so you will not gain in performance) and don't forget properly re-initialize ```.weights``` values(including channels groups, etc.)
   
 * We implement several padding variants for filling empty values after shifts:
   Zeros (by default), Border, Periodic(stands for circular shifts!), Reflect and Symmetric. See [here](https://pywavelets.readthedocs.io/en/latest/ref/signal-extension-modes.html) for details.(This paddings is also used during interpolation calculation) 
@@ -43,15 +43,15 @@ It might be considered as Zero-FLOP replacement of DepthWise Convolution, wiht 4
 
 ## Instalation:
 1. Clone this repo and ```cd ActiveSparseShifts-PyTorch```
-(1b). If you compile with CUDA, please pass path to nvcc to CUDA_HOME env variable!
-2. **Important!** There is bug in PyTorch which can lead to crash during build under CUDA.
+2. (optional)If you compile with CUDA, please pass path to nvcc to CUDA_HOME env variable!
+3. **Important!** There is bug in PyTorch which can lead to crash during build under CUDA.
    This bug was fixed in PyTorch 1.8. However it easy to fix it in previous versions.
    Run ```python torch_patch.py```(anyway it will automatically run during step 3) to fix it.
    This script change a few lines of code in single C++ header file, however doing this directly in python dist-package folder.
    Please, be sure that you have rights for changing files inside this folder!
-   Anyway, you should do it only once for each python enviroment(PyTorch package).
+   Anyway, you should do it only once for each python environment(PyTorch package).
    (If something will going wrong, please inspect ```torch_patch.py``` first (it very simple) and try to reproduce patch manually.)
-3. Run ```python setup.py install``` or ```python setup.py bdist_wheel``` - to instal/build package
+4. Run ```python setup.py install``` or ```python setup.py bdist_wheel``` - to install/build package
 
     
 ## Using:
@@ -82,7 +82,7 @@ Additional options for shift layer:
         
    1. This directly influence on proper shift param initialization.
    2. Output shape via cutting the output and pooling(depending on stride)
-   3. Automaticaly using AveragePooling for emulation stride > 1
+   3. Automatically using AveragePooling for emulation stride > 1
 
 2. Pytorch Quantization: SSL shifts can be used in quantized pipeline!
    Shifts do not needed the activation tracking and so model with shift module can be easily converted by following:
@@ -94,6 +94,9 @@ Additional options for shift layer:
    ``` torch.jit.trace_module(<model_with_Shift_module>) ```
 
 
+## Update Notes:
+  1. (05.05.2021) Compatibility with Pytorch 1.8.1
+
 ## TO DO:
   1. Add unit tests(yes I still make testing in some strange manners)
-  2. Speed up the ops on CUDA
+  2. Speed up the ops on CUDA, still slower than Pytorch's 3x3 DW Convolution
